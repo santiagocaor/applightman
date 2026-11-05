@@ -574,6 +574,31 @@ export function updateDashboard() {
         borderSkipped: false
     }));
 
+    // Total del mes sobre cada barra: una línea invisible cuyo número se coloca encima del tramo más alto
+    const categoryEvolutionTotals = categoryEvolution.months.map((_, index) =>
+        categoryEvolution.categories.reduce((sum, cat) => sum + categoryEvolution.data[cat][index], 0));
+    if (categoryEvolutionDatasets.length > 0) {
+        categoryEvolutionDatasets.push({
+            type: 'line',
+            label: 'Total',
+            data: categoryEvolutionTotals,
+            borderWidth: 0,
+            borderColor: 'transparent',
+            backgroundColor: 'transparent',
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            datalabels: {
+                display: true,
+                anchor: 'end',
+                align: 'top',
+                color: textColor,
+                font: { weight: 'bold', family: 'Outfit', size: 12 },
+                formatter: (value) => value > 0 ? value : ''
+            }
+        });
+    }
+    renderCategoryEvolutionTable(categoryEvolution, categoryEvolutionLabels);
+
     renderChart('categoryEvolutionChart', 'bar', categoryEvolutionLabels, [], null, {
         datasets: categoryEvolutionDatasets,
         onClick: handleChartClick,
@@ -581,15 +606,10 @@ export function updateDashboard() {
         interaction: { mode: 'index', intersect: false },
         scales: {
             x: { stacked: true },
-            y: { stacked: true, grace: '10%' }
+            y: { stacked: true, grace: '14%' }
         },
         plugins: {
             legend: { display: true },
-            tooltip: {
-                callbacks: {
-                    footer: (items) => `Total : ${items.reduce((sum, item) => sum + item.parsed.y, 0).toLocaleString('fr-CA')}`
-                }
-            },
             datalabels: {
                 // El número solo se muestra si el tramo es lo bastante alto para contenerlo
                 display: (context) => {
@@ -652,6 +672,37 @@ export function updateDashboard() {
 
     renderStatsTable(dashboardRecords);
 }
+// Tabla bajo la gráfica apilada: los tramos pequeños no caben como número en la barra,
+// así que aquí cada categoría muestra su cantidad exacta y "–" cuando no hubo reemplazos
+function renderCategoryEvolutionTable(evolution, monthLabels) {
+    const table = document.getElementById('category-evolution-table');
+    if (!table) return;
+
+    if (evolution.months.length === 0) {
+        table.innerHTML = '<tbody><tr><td class="evolution-empty">Aucune donnée pour ces filtres.</td></tr></tbody>';
+        return;
+    }
+
+    const format = (value) => value > 0 ? value.toLocaleString('fr-CA') : '–';
+    const cell = (value, extra = '') => `<td class="${value > 0 ? '' : 'is-zero'} ${extra}">${format(value)}</td>`;
+    const header = evolution.categories.map(cat =>
+        `<th scope="col"><span class="evolution-dot" style="background: ${getCategoryColor(cat)}"></span>${escapeHtml(cat)}</th>`).join('');
+
+    const rows = evolution.months.map((_, index) => {
+        const values = evolution.categories.map(cat => evolution.data[cat][index]);
+        const total = values.reduce((sum, value) => sum + value, 0);
+        return `<tr><th scope="row">${escapeHtml(monthLabels[index])}</th>${values.map(value => cell(value)).join('')}${cell(total, 'is-total')}</tr>`;
+    }).join('');
+
+    const categoryTotals = evolution.categories.map(cat => evolution.data[cat].reduce((sum, value) => sum + value, 0));
+    const grandTotal = categoryTotals.reduce((sum, value) => sum + value, 0);
+
+    table.innerHTML = `
+        <thead><tr><th scope="col">Mois</th>${header}<th scope="col">Total</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><th scope="row">Total</th>${categoryTotals.map(value => cell(value)).join('')}${cell(grandTotal, 'is-total')}</tr></tfoot>`;
+}
+
 let referenceControlsBound = false;
 
 // Referencias presentes en los registros, ordenadas por nombre. Si dos comparten descripción, se distinguen por su ID.

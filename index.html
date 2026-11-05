@@ -339,14 +339,20 @@
                     </div>
                 </div>
 
-                <div class="card chart-card full-width-card">
+                <div class="card chart-card full-width-card chart-card-tall">
                     <h3>Évolution mensuelle par catégorie</h3>
                     <div class="chart-container">
                         <canvas id="categoryEvolutionChart" role="img" aria-label="Graphique : Évolution mensuelle par catégorie de matériel"></canvas>
                     </div>
+                    <details class="evolution-detail" open>
+                        <summary>Détail par mois et par catégorie</summary>
+                        <div class="evolution-table-wrap">
+                            <table class="evolution-table" id="category-evolution-table"></table>
+                        </div>
+                    </details>
                 </div>
 
-                <div class="card chart-card full-width-card compare-card">
+                <div class="card chart-card full-width-card chart-card-tall">
                     <h3>Évolution par référence</h3>
                     <div class="compare-controls">
                         <div class="form-group" style="margin-bottom: 0;">
