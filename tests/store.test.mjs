@@ -210,3 +210,14 @@ test('una comparación guardada dañada no rompe la app', async () => {
         assert.equal(typeof selection.b, 'string', raw);
     }
 });
+
+test('cada gráfica de comparación recuerda su propia elección', async () => {
+    const first = await openStore(CLOUD);
+    first.setCompareSelection('F32T8/930', 'F32T8/935');
+    first.setCompareSelection('Locataire A', 'Locataire B', 'locataires');
+    instance += 1;
+    const second = await import(`../js/store.js?test=${instance}`);
+    assert.deepEqual(second.getCompareSelection(), { a: 'F32T8/930', b: 'F32T8/935' });
+    assert.deepEqual(second.getCompareSelection('locataires'), { a: 'Locataire A', b: 'Locataire B' });
+    assert.deepEqual(second.getCompareSelection('otra'), { a: '', b: '' });
+});

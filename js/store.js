@@ -255,16 +255,16 @@ export function editRecordLocally(uuid, updatedRecord) {
     setHistory(history);
 }
 
-// Última comparación elegida en Stats: se conserva para no volver a buscarla cada vez
-const COMPARE_KEY = 'lightman_compare_refs';
+// Última comparación elegida en cada gráfica de Stats ("refs", "locataires"): se conserva para no volver a buscarla
+const compareKey = (name) => `lightman_compare_${name}`;
 
-export function getCompareSelection() {
-    const value = readJson(COMPARE_KEY, {});
+export function getCompareSelection(name = 'refs') {
+    const value = readJson(compareKey(name), {});
     return { a: toText(value && value.a), b: toText(value && value.b) };
 }
 
-export function setCompareSelection(a, b) {
-    writeJson(COMPARE_KEY, { a: toText(a), b: toText(b) });
+export function setCompareSelection(a, b, name = 'refs') {
+    writeJson(compareKey(name), { a: toText(a), b: toText(b) });
 }
 
 export function getNotes() {

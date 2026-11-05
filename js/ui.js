@@ -42,8 +42,6 @@ export const elements = {
     reloadAppBtn: document.getElementById('reload-app-btn'),
     
     statAvg: document.getElementById('stat-avg'),
-    statPrice: document.getElementById('stat-price'),
-    statUnitAvg: document.getElementById('stat-unit-avg'),
     statTopEtage: document.getElementById('stat-top-etage'),
     statTopProduct: document.getElementById('stat-top-product'),
     statTotal: document.getElementById('stat-total'),

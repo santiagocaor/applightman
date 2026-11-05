@@ -1,5 +1,5 @@
 // js/charts.js
-import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, referenceKey, monthlySeries } from './utils.js';
+import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, referenceKey, locataireKey, etageKey, monthlySeries } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -33,14 +33,6 @@ export function getFilteredRecords() {
     return filtered;
 }
 
-// Devuelve el precio unitario o null si el registro no tiene un precio válido.
-// El ID manda: la descripción solo se usa si el ID no existe, porque dos artículos pueden compartirla.
-function resolveUnitPrice(r) {
-    const ownPrice = parsePrice(r.prix);
-    if (ownPrice !== null) return ownPrice;
-    return getCatalogPrice(r);
-}
-
 // Precio vigente del artículo en el catálogo, o null si no tiene uno válido
 export function getCatalogPrice(r) {
     const normalize = (value) => String(value ?? "").trim().toLowerCase();
@@ -58,12 +50,8 @@ export function getCatalogPrice(r) {
     return null;
 }
 
-export function getRecordUnitPrice(r) {
-    return resolveUnitPrice(r) ?? 0;
-}
-
 // Compara el último mes completo con el anterior: el mes en curso aún no es comparable.
-// Más consumo o gasto se muestra en rojo y menos en verde.
+// Más consumo se muestra en rojo y menos en verde.
 function renderMonthlyTrend(el, monthlyTotals, fallbackText) {
     if (!el) return;
 
@@ -87,7 +75,7 @@ function renderMonthlyTrend(el, monthlyTotals, fallbackText) {
     el.textContent = `${diffPct > 0 ? '+' : ''}${diffPct}% ${period}`;
 }
 
-function renderDataNotice(missingPriceCount) {
+function renderDataNotice() {
     const notice = ui.elements.statsDataNotice;
     if (!notice) return;
 
@@ -96,9 +84,6 @@ function renderDataNotice(missingPriceCount) {
     if (total > loaded) {
         messages.push(`Seuls les ${loaded.toLocaleString('fr-CA')} enregistrements les plus récents sur ${total.toLocaleString('fr-CA')} sont pris en compte.`);
     }
-    if (missingPriceCount > 0) {
-        messages.push(`${missingPriceCount} enregistrement${missingPriceCount > 1 ? 's' : ''} sans prix valide : le coût total est sous-estimé.`);
-    }
     notice.textContent = messages.join(' ');
     notice.classList.toggle('hidden-field', messages.length === 0);
 }
@@ -106,26 +91,16 @@ function renderDataNotice(missingPriceCount) {
 export function updateDashboard() {
     const dashboardRecords = getFilteredRecords();
 
-    // Calcular totales de bombillas y precio
+    // Total de ampoules
     const totalBulbs = dashboardRecords.reduce((sum, r) => sum + Number(r.quantite || 0), 0);
-    renderDataNotice(dashboardRecords.filter(r => resolveUnitPrice(r) === null).length);
-    const totalPrice = dashboardRecords.reduce((sum, r) => {
-        const qty = Number(r.quantite || 0);
-        const unitPrice = getRecordUnitPrice(r);
-        return sum + (qty * unitPrice);
-    }, 0);
-    
-    // 1.5 Ampoules changées par mois y Total Prix par mois
+    renderDataNotice();
+    // 1.5 Ampoules changées par mois
     const monthlyData = {};
-    const monthlyPriceData = {};
     dashboardRecords.forEach(r => {
         const key = recordMonthKey(r);
         if (!key) return;
         const qty = Number(r.quantite || 0);
         monthlyData[key] = (monthlyData[key] || 0) + qty;
-
-        const unitPrice = getRecordUnitPrice(r);
-        monthlyPriceData[key] = (monthlyPriceData[key] || 0) + (qty * unitPrice);
     });
     const sortedMonths = Object.keys(monthlyData).sort();
     const monthNames = ["Janv", "Févr", "Mars", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"];
@@ -134,15 +109,12 @@ export function updateDashboard() {
         return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
     });
     const monthlyValues = sortedMonths.map(key => monthlyData[key]);
-    const monthlyPriceValues = sortedMonths.map(key => parseFloat((monthlyPriceData[key] || 0).toFixed(2)));
 
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
 
-    // Paleta semántica: Azul Técnico para volumen, Teal Financiero para costos
+    // Azul técnico para el volumen
     const volumeColor = isDarkMode ? '#3b82f6' : '#2563eb';
-    const costColor = isDarkMode ? '#14b8a6' : '#0d9488';
     const monthlyColors = sortedMonths.map(() => volumeColor);
-    const monthlyPriceColors = sortedMonths.map(() => costColor);
 
     // 2. Top 5 Productos
     const productData = {};
@@ -201,26 +173,6 @@ export function updateDashboard() {
     }
 
     renderMonthlyTrend(document.getElementById('stat-trend-total'), monthlyData, 'Consommation globale');
-
-    if (ui.elements.statPrice) {
-        const formattedPrice = totalPrice.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
-        ui.elements.statPrice.textContent = formattedPrice;
-        ui.elements.statPrice.title = formattedPrice;
-    }
-
-    renderMonthlyTrend(document.getElementById('stat-trend-price'), monthlyPriceData, 'Coût total estimé');
-
-    const avgUnitPrice = totalBulbs > 0 ? (totalPrice / totalBulbs) : 0;
-    if (ui.elements.statUnitAvg) {
-        const formattedUnitAvg = avgUnitPrice.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
-        ui.elements.statUnitAvg.textContent = formattedUnitAvg;
-        ui.elements.statUnitAvg.title = `${formattedUnitAvg} / unité`;
-    }
-    const trendUnitAvgEl = document.getElementById('stat-trend-unit-avg');
-    if (trendUnitAvgEl) {
-        trendUnitAvgEl.className = 'stat-trend neutral';
-        trendUnitAvgEl.textContent = 'Moyenne / ampoule';
-    }
 
     // Promedio sobre meses completos, contando también los meses sin registros
     const { average: monthlyAvg, months: averageMonths } = monthlyAverage(monthlyData);
@@ -312,7 +264,7 @@ export function updateDashboard() {
         if (ui.elements.filterHistoryCategorie) ui.elements.filterHistoryCategorie.value = 'all';
         if (ui.elements.searchHistory) ui.elements.searchHistory.value = '';
 
-        if ((canvasId === 'monthlyBulbsChart' || canvasId === 'monthlyCostChart' || canvasId === 'taskTypeEvolutionChart') && ui.elements.filterHistoryMonth) {
+        if ((canvasId === 'monthlyBulbsChart' || canvasId === 'taskTypeEvolutionChart') && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = sortedMonths[index] || 'all';
         } else if (canvasId === 'categoryEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = categoryEvolution.months[index] || 'all';
@@ -377,38 +329,6 @@ export function updateDashboard() {
                 color: textColor,
                 font: { weight: 'bold', family: 'Outfit', size: 12 },
                 formatter: (val) => val > 0 ? val : ''
-            }
-        }
-    });
-
-    renderChart('monthlyCostChart', 'bar', monthlyLabels, monthlyPriceValues, monthlyPriceColors, {
-        datasetLabel: 'Coût total ($)',
-        onClick: handleChartClick,
-        scales: {
-            y: { 
-                grace: '18%',
-                ticks: {
-                    callback: function(value) {
-                        return value + ' $';
-                    }
-                }
-            }
-        },
-        plugins: {
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        const val = context.parsed.y !== undefined ? context.parsed.y : context.parsed;
-                        return ` Total: ${Number(val).toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
-                    }
-                }
-            },
-            datalabels: {
-                anchor: 'end',
-                align: 'top',
-                color: textColor,
-                font: { weight: 'bold', family: 'Outfit', size: 12 },
-                formatter: (val) => val > 0 ? `${Number(val).toLocaleString('fr-CA', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} $` : ''
             }
         }
     });
@@ -563,49 +483,14 @@ export function updateDashboard() {
 
     // Évolution mensuelle par catégorie: une ligne par catégorie, les mois sans remplacement valent 0
     const categoryEvolution = monthlyByCategory(dashboardRecords, { fillGaps: true });
-    const categoryEvolutionLabels = categoryEvolution.months.map(key => {
-        const [y, m] = key.split('-');
-        return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
-    });
-    const categoryEvolutionDatasets = categoryEvolution.categories.map(cat => {
-        const color = getCategoryColor(cat);
-        return {
-            label: cat,
-            data: categoryEvolution.data[cat],
-            borderColor: color,
-            backgroundColor: color,
-            fill: false,
-            // Monótona: la curva nunca se sale de los valores reales (p. ej. por debajo de 0)
-            cubicInterpolationMode: 'monotone',
-            tension: 0.3,
-            borderWidth: 3,
-            pointRadius: 4,
-            pointHoverRadius: 6
-        };
+    renderGroupEvolution('categoryEvolutionChart', categoryEvolution.months, categoryEvolution.categories, categoryEvolution.data, {
+        colorFor: (name) => getCategoryColor(name),
+        textColor,
+        onClick: handleChartClick
     });
 
-    renderChart('categoryEvolutionChart', 'line', categoryEvolutionLabels, [], null, {
-        datasets: categoryEvolutionDatasets,
-        onClick: handleChartClick,
-        // Al pasar sobre un mes se ven todas las categorías a la vez
-        interaction: { mode: 'index', intersect: false },
-        scales: {
-            y: { beginAtZero: true, grace: '15%' }
-        },
-        layout: { padding: { top: 20 } },
-        plugins: {
-            legend: { display: true },
-            datalabels: {
-                display: 'auto',
-                anchor: 'end',
-                align: 'top',
-                color: (context) => context.dataset.borderColor || textColor,
-                font: { weight: 'bold', family: 'Outfit', size: 11 },
-                formatter: (value) => value > 0 ? value : ''
-            }
-        }
-    });
-
+    renderLocataireEvolution(dashboardRecords);
+    renderEtageEvolution(dashboardRecords);
     renderReferenceEvolution(dashboardRecords);
 
     const topProductsHeight = Math.max(250, sortedProducts.length * 48);
@@ -652,7 +537,55 @@ export function updateDashboard() {
 
     renderStatsTable(dashboardRecords);
 }
-let referenceControlsBound = false;
+// Gráfica de líneas con un trazo por categoría a lo largo de los meses
+function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textColor, onClick }) {
+    const monthLabelNames = ["Janv", "Févr", "Mars", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"];
+    const labels = months.map(key => {
+        const [y, m] = key.split('-');
+        return `${monthLabelNames[parseInt(m, 10) - 1]} ${y}`;
+    });
+
+    const datasets = groups.map((group, index) => {
+        const color = colorFor(group, index);
+        return {
+            label: group,
+            data: data[group],
+            borderColor: color,
+            backgroundColor: color,
+            fill: false,
+            // Monótona: la curva nunca se sale de los valores reales (p. ej. por debajo de 0)
+            cubicInterpolationMode: 'monotone',
+            tension: 0.3,
+            borderWidth: 3,
+            pointRadius: 4,
+            pointHoverRadius: 6
+        };
+    });
+
+    renderChart(canvasId, 'line', labels, [], null, {
+        datasets,
+        onClick,
+        // Al pasar sobre un mes se ven todas las categorías a la vez
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+            y: { beginAtZero: true, grace: '15%' }
+        },
+        layout: { padding: { top: 20 } },
+        plugins: {
+            legend: { display: true },
+            datalabels: {
+                display: 'auto',
+                anchor: 'end',
+                align: 'top',
+                color: (context) => context.dataset.borderColor || textColor,
+                font: { weight: 'bold', family: 'Outfit', size: 11 },
+                formatter: (value) => value > 0 ? value : ''
+            }
+        }
+    });
+}
+
+const boundCompareControls = new Set();
 
 // Referencias presentes en los registros, ordenadas por nombre. Si dos comparten descripción, se distinguen por su ID.
 function referenceOptions(records) {
@@ -678,10 +611,39 @@ function referenceOptions(records) {
     entries.forEach(entry => {
         if (labelCounts[entry.label] > 1 && entry.key !== entry.label) entry.label = `${entry.label} — ${entry.key}`;
     });
+    return sortByLabel(entries);
+}
+
+// Locatarios presentes en los registros, ordenados por nombre
+function locataireOptions(records) {
+    const byKey = new Map();
+    records.forEach(record => {
+        const key = locataireKey(record);
+        const entry = byKey.get(key) || { key, label: key, total: 0 };
+        entry.total += Number(record.quantite || 0);
+        byKey.set(key, entry);
+    });
+    return sortByLabel([...byKey.values()]);
+}
+
+// Pisos presentes en los registros, del más bajo al más alto; los registros sin piso no cuentan
+function etageOptions(records) {
+    const byKey = new Map();
+    records.forEach(record => {
+        const key = etageKey(record);
+        if (!key) return;
+        const entry = byKey.get(key) || { key, label: `Étage ${key}`, total: 0 };
+        entry.total += Number(record.quantite || 0);
+        byKey.set(key, entry);
+    });
+    return sortByLabel([...byKey.values()]);
+}
+
+function sortByLabel(entries) {
     return entries.sort((x, y) => x.label.localeCompare(y.label, 'fr', { numeric: true, sensitivity: 'base' }));
 }
 
-function fillReferenceSelect(select, entries, selectedKey, emptyLabel) {
+function fillCompareSelect(select, entries, selectedKey, emptyLabel) {
     select.innerHTML = '';
     if (emptyLabel) {
         const empty = document.createElement('option');
@@ -699,40 +661,83 @@ function fillReferenceSelect(select, entries, selectedKey, emptyLabel) {
     select.disabled = entries.length === 0;
 }
 
-// Gráfica de líneas: evolución mensual de una referencia y, si se elige, comparada con otra
-function renderReferenceEvolution(records) {
-    const selectA = document.getElementById('compare-ref-a');
-    const selectB = document.getElementById('compare-ref-b');
-    if (!selectA || !selectB) return;
+// Cada gráfica de comparación tiene sus selectores, su lienzo y su propia elección guardada
+const REFERENCE_COMPARE = {
+    name: 'refs',
+    selectA: 'compare-ref-a',
+    selectB: 'compare-ref-b',
+    canvasId: 'referenceEvolutionChart',
+    getKey: referenceKey,
+    buildEntries: referenceOptions
+};
 
-    if (!referenceControlsBound) {
-        referenceControlsBound = true;
+const LOCATAIRE_COMPARE = {
+    name: 'locataires',
+    selectA: 'compare-loc-a',
+    // Un solo locatario a la vez: esta gráfica no se compara con otro
+    selectB: null,
+    canvasId: 'locataireEvolutionChart',
+    getKey: locataireKey,
+    buildEntries: locataireOptions
+};
+
+const ETAGE_COMPARE = {
+    name: 'etages',
+    selectA: 'compare-etage-a',
+    // Un solo piso a la vez: esta gráfica no se compara con otro
+    selectB: null,
+    canvasId: 'etageEvolutionChart',
+    getKey: etageKey,
+    buildEntries: etageOptions
+};
+
+function renderReferenceEvolution(records) {
+    renderCompareEvolution(REFERENCE_COMPARE, records);
+}
+
+function renderLocataireEvolution(records) {
+    renderCompareEvolution(LOCATAIRE_COMPARE, records);
+}
+
+function renderEtageEvolution(records) {
+    renderCompareEvolution(ETAGE_COMPARE, records);
+}
+
+// Gráfica de líneas: evolución mensual de un elemento elegido y, si se elige, comparada con otro
+function renderCompareEvolution(config, records) {
+    const selectA = document.getElementById(config.selectA);
+    // Algunas gráficas solo permiten elegir un elemento, sin segundo selector para comparar
+    const selectB = config.selectB ? document.getElementById(config.selectB) : null;
+    if (!selectA || (config.selectB && !selectB)) return;
+
+    if (!boundCompareControls.has(config.name)) {
+        boundCompareControls.add(config.name);
         const onChange = () => {
-            store.setCompareSelection(selectA.value, selectB.value);
-            renderReferenceEvolution(getFilteredRecords());
+            store.setCompareSelection(selectA.value, selectB ? selectB.value : '', config.name);
+            renderCompareEvolution(config, getFilteredRecords());
         };
         selectA.addEventListener('change', onChange);
-        selectB.addEventListener('change', onChange);
+        if (selectB) selectB.addEventListener('change', onChange);
     }
 
-    const entries = referenceOptions(records);
+    const entries = config.buildEntries(records);
     const keys = entries.map(entry => entry.key);
-    const saved = store.getCompareSelection();
+    const saved = store.getCompareSelection(config.name);
 
-    // Sin elección válida se muestra la referencia más utilizada
+    // Sin elección válida se muestra el elemento más utilizado
     const mostUsed = [...entries].sort((x, y) => y.total - x.total)[0];
     const a = keys.includes(saved.a) ? saved.a : (mostUsed ? mostUsed.key : '');
-    const b = keys.includes(saved.b) && saved.b !== a ? saved.b : '';
+    const b = selectB && keys.includes(saved.b) && saved.b !== a ? saved.b : '';
 
-    fillReferenceSelect(selectA, entries, a, null);
-    fillReferenceSelect(selectB, entries.filter(entry => entry.key !== a), b, '— Aucune —');
+    fillCompareSelect(selectA, entries, a, null);
+    if (selectB) fillCompareSelect(selectB, entries.filter(entry => entry.key !== a), b, '— Aucune —');
 
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
     const textColor = isDarkMode ? '#94a3b8' : '#475569';
     const lineColors = isDarkMode ? ['#60a5fa', '#fbbf24'] : ['#2563eb', '#d97706'];
 
     const selected = [a, b].filter(Boolean);
-    const { months, series } = monthlySeries(records, selected);
+    const { months, series } = monthlySeries(records, selected, config.getKey);
     const labelOf = (key) => (entries.find(entry => entry.key === key) || { label: key }).label;
     const monthNamesShort = ["Janv", "Févr", "Mars", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"];
     const labels = months.map(key => {
@@ -754,7 +759,7 @@ function renderReferenceEvolution(records) {
         pointHoverRadius: 6
     }));
 
-    renderChart('referenceEvolutionChart', 'line', labels, [], null, {
+    renderChart(config.canvasId, 'line', labels, [], null, {
         datasets,
         // Al pasar sobre un mes se ven las dos líneas a la vez
         interaction: { mode: 'index', intersect: false },

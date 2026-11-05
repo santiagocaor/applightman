@@ -82,36 +82,56 @@ export function weekdayTotals(records) {
     return { values, weekend };
 }
 
-// Cantidad reemplazada por mes y categoría, para gráficas apiladas.
-// categories va de la más usada a la menos usada; data[categoría][i] corresponde a months[i].
-export function monthlyByCategory(records, { fillGaps = false } = {}) {
+// Cantidad reemplazada por mes para cada grupo (categoría, locatario…), lista para una gráfica.
+// groups va del grupo más usado al menos usado; data[grupo][i] corresponde a months[i].
+export function monthlyByGroup(records, getGroup, { fillGaps = false } = {}) {
     const totals = {};
-    const categoryTotals = {};
+    const groupTotals = {};
     records.forEach(record => {
-        const key = recordMonthKey(record);
-        if (!key) return;
-        const category = String(record.categorie ?? '').trim() || 'Inconnu';
+        const month = recordMonthKey(record);
+        if (!month) return;
+        const group = getGroup(record);
         const qty = Number(record.quantite || 0);
-        totals[key] = totals[key] || {};
-        totals[key][category] = (totals[key][category] || 0) + qty;
-        categoryTotals[category] = (categoryTotals[category] || 0) + qty;
+        totals[month] = totals[month] || {};
+        totals[month][group] = (totals[month][group] || 0) + qty;
+        groupTotals[group] = (groupTotals[group] || 0) + qty;
     });
 
     let months = Object.keys(totals).sort();
     // En una gráfica de líneas los meses sin registros deben aparecer, en 0, para no falsear la escala del tiempo
     if (fillGaps && months.length > 0) months = monthRange(months[0], months[months.length - 1]);
-    const categories = Object.keys(categoryTotals)
-        .sort((a, b) => categoryTotals[b] - categoryTotals[a] || a.localeCompare(b, 'fr'));
+    const groups = Object.keys(groupTotals)
+        .sort((a, b) => groupTotals[b] - groupTotals[a] || a.localeCompare(b, 'fr'));
     const data = {};
-    categories.forEach(category => {
-        data[category] = months.map(month => (totals[month] && totals[month][category]) || 0);
+    groups.forEach(group => {
+        data[group] = months.map(month => (totals[month] && totals[month][group]) || 0);
     });
-    return { months, categories, data };
+    return { months, groups, data };
+}
+
+// Lo mismo por categoría de material; los registros sin categoría van a "Inconnu"
+export function monthlyByCategory(records, options) {
+    const { months, groups, data } = monthlyByGroup(
+        records,
+        record => String(record.categorie ?? '').trim() || 'Inconnu',
+        options
+    );
+    return { months, categories: groups, data };
 }
 
 // Identifica la referencia de un registro: su ID y, si no lo tiene, su descripción
 export function referenceKey(record) {
     return String(record.id_item ?? '').trim() || String(record.description ?? '').trim() || 'Inconnu';
+}
+
+// Identifica el locatario de un registro; los que no tienen uno se agrupan como "Non assigné"
+export function locataireKey(record) {
+    return String(record.locataire ?? '').trim() || 'Non assigné';
+}
+
+// Identifica el piso de un registro; vacío si no tiene uno
+export function etageKey(record) {
+    return String(record.etage ?? '').trim();
 }
 
 // Meses seguidos desde el primero hasta el último, incluidos los que no tienen registros
@@ -125,7 +145,7 @@ export function monthRange(firstKey, lastKey) {
 
 // Cantidad por mes de las referencias elegidas. El eje cubre todo el período de los registros,
 // con los meses seguidos y en 0 donde la referencia no tuvo reemplazos.
-export function monthlySeries(records, selectedKeys) {
+export function monthlySeries(records, selectedKeys, getKey = referenceKey) {
     const wanted = new Set(selectedKeys);
     const totals = {};
     let first = null;
@@ -136,7 +156,7 @@ export function monthlySeries(records, selectedKeys) {
         if (first === null || month < first) first = month;
         if (last === null || month > last) last = month;
 
-        const key = referenceKey(record);
+        const key = getKey(record);
         if (!wanted.has(key)) return;
         totals[key] = totals[key] || {};
         totals[key][month] = (totals[key][month] || 0) + Number(record.quantite || 0);

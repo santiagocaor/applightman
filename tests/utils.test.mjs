@@ -5,11 +5,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     escapeHtml,
+    etageKey,
     isReceptionTask,
     localDateString,
+    locataireKey,
     monthlyAverage,
     monthRange,
     monthlyByCategory,
+    monthlyByGroup,
     monthlySeries,
     naturalCompare,
     parsePrice,
@@ -241,4 +244,68 @@ test('monthlyByCategory con fillGaps incluye los meses sin registros en 0', () =
 
 test('monthlyByCategory con fillGaps no falla sin datos', () => {
     assert.deepEqual(monthlyByCategory([], { fillGaps: true }), { months: [], categories: [], data: {} });
+});
+
+test('monthlyByGroup agrupa con la función indicada y ordena del más al menos usado', () => {
+    const { months, groups, data } = monthlyByGroup([
+        { fecha: '2026-08-03', locataire: 'Locataire A', quantite: 4 },
+        { fecha: '2026-08-20', locataire: 'Locataire B', quantite: 9 },
+        { fecha: '2026-10-05', locataire: 'Locataire A', quantite: 3 }
+    ], record => record.locataire);
+    assert.deepEqual(months, ['2026-08', '2026-10']);
+    assert.deepEqual(groups, ['Locataire B', 'Locataire A']);
+    assert.deepEqual(data, { 'Locataire B': [9, 0], 'Locataire A': [4, 3] });
+});
+
+test('monthlyByGroup con fillGaps incluye los meses vacíos y usa el mes local', () => {
+    const { months, data } = monthlyByGroup([
+        { date: '2026-06-01T04:00:00.000Z', locataire: 'A', quantite: 2 },
+        { fecha: '2026-09-02', locataire: 'A', quantite: 5 }
+    ], record => record.locataire, { fillGaps: true });
+    assert.deepEqual(months, ['2026-06', '2026-07', '2026-08', '2026-09']);
+    assert.deepEqual(data, { A: [2, 0, 0, 5] });
+});
+
+test('monthlyByGroup desempata por nombre y no falla sin datos', () => {
+    const { groups } = monthlyByGroup([
+        { fecha: '2026-08-03', locataire: 'B', quantite: 1 },
+        { fecha: '2026-08-03', locataire: 'A', quantite: 1 }
+    ], record => record.locataire);
+    assert.deepEqual(groups, ['A', 'B']);
+    assert.deepEqual(monthlyByGroup([], record => record.locataire), { months: [], groups: [], data: {} });
+});
+
+test('locataireKey agrupa los registros sin locatario como "Non assigné"', () => {
+    assert.equal(locataireKey({ locataire: ' Locataire A ' }), 'Locataire A');
+    assert.equal(locataireKey({ locataire: '   ' }), 'Non assigné');
+    assert.equal(locataireKey({}), 'Non assigné');
+});
+
+test('monthlySeries acepta otra función de clave, por ejemplo el locatario', () => {
+    const { months, series } = monthlySeries([
+        { fecha: '2026-07-06', locataire: 'Locataire A', id_item: 'A', quantite: 4 },
+        { fecha: '2026-07-20', locataire: 'Locataire A', id_item: 'B', quantite: 2 },
+        { fecha: '2026-09-08', locataire: 'Locataire B', id_item: 'A', quantite: 7 },
+        { fecha: '2026-09-09', locataire: '', id_item: 'A', quantite: 1 }
+    ], ['Locataire A', 'Non assigné'], locataireKey);
+    assert.deepEqual(months, ['2026-07', '2026-08', '2026-09']);
+    assert.deepEqual(series, { 'Locataire A': [6, 0, 0], 'Non assigné': [0, 0, 1] });
+});
+
+test('etageKey devuelve el piso sin espacios y vacío si no hay', () => {
+    assert.equal(etageKey({ etage: ' 16A ' }), '16A');
+    assert.equal(etageKey({ etage: 7 }), '7');
+    assert.equal(etageKey({ etage: null }), '');
+    assert.equal(etageKey({}), '');
+});
+
+test('monthlySeries por piso suma solo el piso elegido', () => {
+    const { months, series } = monthlySeries([
+        { fecha: '2026-08-03', etage: '3', quantite: 4 },
+        { fecha: '2026-08-04', etage: ' 3 ', quantite: 1 },
+        { fecha: '2026-08-05', etage: '10', quantite: 9 },
+        { fecha: '2026-10-02', etage: '3', quantite: 2 }
+    ], ['3'], etageKey);
+    assert.deepEqual(months, ['2026-08', '2026-09', '2026-10']);
+    assert.deepEqual(series, { 3: [5, 0, 2] });
 });
