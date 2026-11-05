@@ -221,3 +221,13 @@ test('cada gráfica de comparación recuerda su propia elección', async () => {
     assert.deepEqual(second.getCompareSelection('locataires'), { a: 'Locataire A', b: 'Locataire B' });
     assert.deepEqual(second.getCompareSelection('otra'), { a: '', b: '' });
 });
+
+test('el borrador del formulario se guarda, caduca a las 12 horas y se puede borrar', async () => {
+    const store = await openStore();
+    assert.equal(store.getDraft(), null);
+    store.setDraft({ tache: 'Bon de travail', num_bon: '1001' });
+    assert.deepEqual(store.getDraft(), { tache: 'Bon de travail', num_bon: '1001' });
+    assert.equal(store.getDraft(Date.now() + 13 * 60 * 60 * 1000), null);
+    store.clearDraft();
+    assert.equal(store.getDraft(), null);
+});

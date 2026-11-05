@@ -1225,13 +1225,15 @@ body {
 /* --- Custom Toast Notification --- */
 .toast-container {
     position: fixed;
-    bottom: 30px;
+    bottom: calc(90px + env(safe-area-inset-bottom));
     left: 50%;
+    width: max-content;
+    max-width: calc(100vw - 2rem);
     transform: translateX(-50%) translateY(100px);
     background: var(--bg-card);
     color: var(--text-primary);
-    padding: 1rem 1.5rem;
-    border-radius: 30px;
+    padding: 0.85rem 1.25rem;
+    border-radius: 24px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.2);
     display: flex;
     align-items: center;
@@ -1817,4 +1819,103 @@ body {
 
 .history-group:not([open]) > summary::after {
     content: '';
+}
+
+/* --- Saisie : fecha rápida, recientes, resumen de la visita, Id compacto, aviso con acción --- */
+.quick-dates {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.quick-date-btn {
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--primary);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.quick-date-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--bg-card);
+}
+
+.recent-label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.recent-refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.recent-chip {
+    max-width: 100%;
+    padding: 0.3rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.visit-summary {
+    margin: -0.5rem 0 1rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 3px solid var(--primary);
+    border-radius: var(--radius-sm);
+    background: var(--input-bg);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.id-compact {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: -0.25rem;
+}
+
+.id-compact label {
+    flex: 0 0 auto;
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.id-compact input {
+    flex: 1 1 auto;
+    height: 34px;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.85rem;
+}
+
+.toast-action {
+    margin-left: 0.5rem;
+    padding: 0.35rem 0.9rem;
+    border: 1px solid var(--primary);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--primary);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
 }

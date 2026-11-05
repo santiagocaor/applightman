@@ -181,7 +181,7 @@ export function uniqueDocsByMonth(records) {
     return { months, bon, tournee, totalBon: sum(bon), totalTournee: sum(tournee), withoutNumber };
 }
 
-function recordDay(record) {
+export function recordDay(record) {
     const raw = record.date || record.fecha;
     if (!raw) return '';
     const date = parseRecordDate(raw);
@@ -236,6 +236,41 @@ export function groupHistory(records) {
             locataires: unique(item.lines.map(line => line.locataire)).sort()
         };
     });
+}
+
+// Lo ya anotado para el bon, la tournée o la soumission que se está escribiendo (mismo número y mismo día).
+// probe lleva lo que hay en el formulario: tache, num_bon, num_tache, num_soumission y date.
+export function visitSummary(records, probe) {
+    const doc = docReference(probe);
+    const day = recordDay({ fecha: probe.date });
+    if (!doc || !doc.number || !day) return null;
+    const wanted = doc.number.toLowerCase();
+    const summary = { kind: doc.kind, number: doc.number, lines: 0, bulbs: 0 };
+    records.forEach(record => {
+        const other = docReference(record);
+        if (other && other.kind === doc.kind && other.number.toLowerCase() === wanted && recordDay(record) === day) {
+            summary.lines += 1;
+            summary.bulbs += Number(record.quantite || 0);
+        }
+    });
+    return summary;
+}
+
+// Artículos distintos de los últimos registros (el más reciente primero), para repetirlos con un toque
+export function recentReferences(history, limit = 5) {
+    const seen = new Set();
+    const result = [];
+    for (const record of history) {
+        const id = String(record.id_item ?? '').trim();
+        const description = String(record.description ?? '').trim();
+        if (!id && !description) continue;
+        const key = id || description.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push({ id, description, categorie: String(record.categorie ?? '').trim() });
+        if (result.length >= limit) break;
+    }
+    return result;
 }
 
 // Con el orden por cantidad, cada visita compite con su total y no con su línea más grande

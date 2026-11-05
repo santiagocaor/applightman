@@ -9,6 +9,8 @@ import {
     uniqueDocsByMonth,
     recurrences,
     docReference,
+    visitSummary,
+    recentReferences,
     sortRecords,
     groupHistory,
     orderHistoryItems,
@@ -491,4 +493,35 @@ test('recordsToCsv escapa celdas, protege fórmulas y respeta pisos negativos', 
     const [header, line] = csv.split('\r\n');
     assert.equal(header, 'Date;Type de tâche;Tournée;Bon de travail;Soumission;Locataire;Étage;Catégorie;Description;Quantité;Id;Note');
     assert.equal(line, '2026-08-05;Bon de travail;;1001;;"A; B";-1;Tube;"F32 ""T8""";4;A1;\'=SUM(1)');
+});
+
+test('visitSummary suma lo ya anotado del mismo bon y día', () => {
+    const records = [
+        { fecha: '2026-08-05', tache: 'Bon de travail', num_bon: '1001', quantite: 4 },
+        { fecha: '2026-08-05', tache: 'Bon de travail', num_bon: '1001', quantite: 2 },
+        { fecha: '2026-08-06', tache: 'Bon de travail', num_bon: '1001', quantite: 9 },
+        { fecha: '2026-08-05', tache: 'Tournée', num_tache: '1001', quantite: 7 }
+    ];
+    assert.deepEqual(
+        visitSummary(records, { tache: 'Bon de travail', num_bon: ' 1001 ', date: '2026-08-05' }),
+        { kind: 'bon', number: '1001', lines: 2, bulbs: 6 }
+    );
+    assert.equal(visitSummary(records, { tache: 'Bon de travail', num_bon: '2000', date: '2026-08-05' }).lines, 0);
+    assert.equal(visitSummary(records, { tache: 'Remplacement', num_bon: '1001', date: '2026-08-05' }), null);
+    assert.equal(visitSummary(records, { tache: 'Bon de travail', num_bon: '', date: '2026-08-05' }), null);
+    assert.equal(visitSummary(records, { tache: 'Bon de travail', num_bon: '1001', date: '' }), null);
+});
+
+test('recentReferences devuelve artículos distintos, del más reciente, con un máximo', () => {
+    const history = [
+        { id_item: 'A1', description: 'F32T8', categorie: 'Tube' },
+        { id_item: 'A1', description: 'F32T8', categorie: 'Tube' },
+        { id_item: '', description: 'Sin id', categorie: '' },
+        { id_item: 'B2', description: 'LED', categorie: 'LED' },
+        { id_item: '', description: '' },
+        { id_item: 'C3', description: 'T5', categorie: 'Tube' }
+    ];
+    assert.deepEqual(recentReferences(history, 3).map(item => item.id || item.description), ['A1', 'Sin id', 'B2']);
+    assert.equal(recentReferences(history).length, 4);
+    assert.deepEqual(recentReferences([]), []);
 });

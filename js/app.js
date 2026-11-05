@@ -359,7 +359,7 @@ function setupEventListeners() {
                 } else {
                     store.addRecordLocally(record);
                     if (navigator.vibrate) navigator.vibrate([200]);
-                    ui.showToast("Enregistré localement (Mode test). Configurez Google Sheets pour enregistrer dans le cloud.", "info");
+                    ui.showSavedToast("Enregistré localement (Mode test). Configurez Google Sheets pour enregistrer dans le cloud.", "info", record.uuid);
                     store.addToHistory(record);
                     ui.resetFormAndRefresh(ui.shouldKeepVisit());
                     api.refreshViews();
@@ -371,6 +371,26 @@ function setupEventListeners() {
                 isSubmitting = false;
                 if (submitBtn) submitBtn.disabled = false;
             }
+        });
+    }
+
+    ui.initEntryForm();
+
+    document.querySelectorAll('[data-quick-date]').forEach(button => {
+        button.addEventListener('click', () => {
+            const date = new Date();
+            date.setDate(date.getDate() + Number(button.dataset.quickDate));
+            ui.elements.dateInput.value = localDateString(date);
+            ui.updateDateDisplay();
+            ui.elements.dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
+
+    const clearFormBtn = document.getElementById('clear-form-btn');
+    if (clearFormBtn) {
+        clearFormBtn.addEventListener('click', () => {
+            store.setEditingRecordUuid(null);
+            ui.resetFormAndRefresh();
         });
     }
 

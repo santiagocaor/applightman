@@ -256,6 +256,29 @@ export function editRecordLocally(uuid, updatedRecord) {
 }
 
 // Última comparación elegida en cada gráfica de Stats ("refs", "locataires"): se conserva para no volver a buscarla
+// Borrador del formulario de Saisie: se conserva si la app se cierra o se recarga a medias.
+// Un borrador de hace más de 12 horas se descarta.
+const DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+export function getDraft(now = Date.now()) {
+    const draft = readJson('lightman_draft', null);
+    if (!draft || typeof draft !== 'object' || !draft.values || typeof draft.values !== 'object') return null;
+    if (!(now - Number(draft.savedAt) <= DRAFT_MAX_AGE_MS)) return null;
+    return draft.values;
+}
+
+export function setDraft(values) {
+    writeJson('lightman_draft', { values, savedAt: Date.now() });
+}
+
+export function clearDraft() {
+    try {
+        localStorage.removeItem('lightman_draft');
+    } catch (error) {
+        console.warn("Impossible d'effacer le brouillon :", error);
+    }
+}
+
 // El historial se muestra agrupado por bon o tournée salvo que se desactive
 export function getHistoryGrouped() {
     return readJson('lightman_history_grouped', true) !== false;

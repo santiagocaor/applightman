@@ -1,5 +1,5 @@
 // js/ui.js
-import { getCategoryColor, escapeHtml, localDateString, parseRecordDate, sortRecords, groupHistory, orderHistoryItems, historyTotals, recordsToCsv, docReference, DOC_LABELS } from './utils.js';
+import { getCategoryColor, escapeHtml, localDateString, parseRecordDate, sortRecords, groupHistory, orderHistoryItems, historyTotals, recordsToCsv, docReference, DOC_LABELS, visitSummary, recentReferences } from './utils.js';
 import * as store from './store.js';
 import { deleteRecord } from './api.js';
 
@@ -33,6 +33,8 @@ export const elements = {
     syncStatus: document.getElementById('sync-status'),
     keepVisitInput: document.getElementById('keep-visit'),
     historySort: document.getElementById('history-sort'),
+    recentRefs: document.getElementById('recent-refs'),
+    visitSummary: document.getElementById('visit-summary'),
     historyGroupToggle: document.getElementById('history-group'),
     historyExportBtn: document.getElementById('btn-export-history'),
     historyActiveFilters: document.getElementById('history-active-filters'),
@@ -92,7 +94,7 @@ export function setConnectionStatus(text, isOk) {
     elements.connStatus.className = `status-badge ${isOk ? 'success' : 'error'}`;
 }
 
-export function showToast(message, type = 'success') {
+export function showToast(message, type = 'success', { actionLabel = '', onAction = null, duration = 0 } = {}) {
     const existing = document.getElementById('custom-toast');
     if (existing) existing.remove();
 
@@ -110,15 +112,34 @@ export function showToast(message, type = 'success') {
     toast.innerHTML = `
         <span aria-hidden="true" class="material-symbols-rounded toast-icon ${type}">${iconMap[type] || iconMap.info}</span>
         <span style="font-weight: 500; font-size: 0.95rem;">${escapeHtml(message)}</span>
+        ${actionLabel ? `<button type="button" class="toast-action">${escapeHtml(actionLabel)}</button>` : ''}
     `;
-    
+
     document.body.appendChild(toast);
     setTimeout(() => toast.classList.add('show'), 10);
-    
-    setTimeout(() => {
+
+    let hideTimer = null;
+    const dismiss = () => {
+        clearTimeout(hideTimer);
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 400);
-    }, 3500);
+    };
+    hideTimer = setTimeout(dismiss, duration || 3500);
+
+    const actionButton = toast.querySelector('.toast-action');
+    if (actionButton) {
+        actionButton.addEventListener('click', () => {
+            dismiss();
+            if (onAction) onAction();
+        });
+    }
+}
+
+// Aviso tras guardar con "Annuler" unos segundos, que borra la línea recién guardada
+export function showSavedToast(message, type, uuid) {
+    showToast(message, type, uuid
+        ? { actionLabel: 'Annuler', onAction: () => deleteRecord(uuid), duration: 8000 }
+        : {});
 }
 
 export function showConfirm(message) {
@@ -271,6 +292,9 @@ export function populateAllSelects() {
         : store.appOptions.opciones);
 
     if (elements.idInput && elements.descSelect && !elements.descSelect.value) elements.idInput.value = "";
+
+    renderRecentRefs();
+    restoreDraftIfEmpty();
 }
 
 export function updateDateDisplay() {
@@ -327,7 +351,165 @@ export function shouldKeepVisit() {
     return Boolean(elements.keepVisitInput && elements.keepVisitInput.checked);
 }
 
+// ---------- Saisie: borrador, artículos recientes y resumen de la visita ----------
+const DRAFT_FIELDS = ['date', 'tache', 'num_bon', 'num_soumission', 'num_tache', 'locataire', 'etage', 'categorie', 'description', 'id_item', 'quantite', 'note'];
+const DRAFT_CONTENT_FIELDS = ['tache', 'num_bon', 'num_soumission', 'num_tache', 'locataire', 'etage', 'categorie', 'description', 'note'];
+let draftTimer = null;
+let restoringDraft = false;
+let recentList = [];
+
+function readFormValues() {
+    const values = {};
+    DRAFT_FIELDS.forEach(name => {
+        const field = elements.form ? elements.form.elements[name] : null;
+        values[name] = field ? String(field.value ?? '') : '';
+    });
+    return values;
+}
+
+function hasDraftContent(values) {
+    return DRAFT_CONTENT_FIELDS.some(name => values[name]) || Boolean(values.quantite && values.quantite !== '1');
+}
+
+function cancelDraftSave() {
+    clearTimeout(draftTimer);
+    draftTimer = null;
+}
+
+function saveDraftNow() {
+    cancelDraftSave();
+    if (!elements.form || restoringDraft || store.editingRecordUuid) return;
+    const values = readFormValues();
+    if (hasDraftContent(values)) {
+        store.setDraft(values);
+    } else {
+        store.clearDraft();
+    }
+}
+
+function scheduleDraftSave() {
+    if (restoringDraft) return;
+    cancelDraftSave();
+    draftTimer = setTimeout(saveDraftNow, 400);
+}
+
+// Devuelve al formulario lo que se estaba escribiendo, solo si el formulario está vacío
+function restoreDraftIfEmpty() {
+    if (!elements.form || store.editingRecordUuid) return;
+    if (hasDraftContent(readFormValues())) return;
+    const draft = store.getDraft();
+    if (!draft || !hasDraftContent(draft)) return;
+
+    restoringDraft = true;
+    try {
+        if (draft.date && elements.dateInput) {
+            elements.dateInput.value = draft.date;
+            updateDateDisplay();
+        }
+        if (elements.locataireSelect) elements.locataireSelect.value = draft.locataire || '';
+        if (elements.etageSelect) elements.etageSelect.value = draft.etage || '';
+        if (elements.tacheSelect && draft.tache) {
+            elements.tacheSelect.value = draft.tache;
+            // El cambio de tarea muestra el campo de número correspondiente (y lo vacía): el número se pone después
+            elements.tacheSelect.dispatchEvent(new Event('change'));
+            if (elements.numBonInput) elements.numBonInput.value = draft.num_bon || '';
+            if (elements.numSoumissionInput) elements.numSoumissionInput.value = draft.num_soumission || '';
+            if (elements.numTacheInput) elements.numTacheInput.value = draft.num_tache || '';
+        }
+        if (elements.catSelect && draft.categorie) {
+            elements.catSelect.value = draft.categorie;
+            elements.catSelect.dispatchEvent(new Event('change'));
+        }
+        if (draft.description) {
+            selectDescription(draft.description, draft.id_item || '');
+            if (elements.idInput) elements.idInput.value = draft.id_item || '';
+        }
+        if (elements.quantiteInput && draft.quantite) elements.quantiteInput.value = draft.quantite;
+        if (elements.noteInput) elements.noteInput.value = draft.note || '';
+    } finally {
+        restoringDraft = false;
+    }
+    updateVisitSummary();
+    if (hasDraftContent(readFormValues())) showToast("Brouillon restauré.", "info");
+}
+
+// Los 5 últimos artículos guardados que siguen en el catálogo, como botones de un toque
+function renderRecentRefs() {
+    const container = elements.recentRefs;
+    if (!container) return;
+    const catalog = store.appOptions.opciones || [];
+    recentList = recentReferences(store.getHistory(), 15)
+        .map(entry => {
+            const option = catalog.find(opt => (entry.id ? opt.id === entry.id : opt.description === entry.description));
+            return option ? { id: option.id, description: option.description, categorie: option.categorie || entry.categorie } : null;
+        })
+        .filter(Boolean)
+        .slice(0, 5);
+
+    container.innerHTML = recentList.map((entry, index) =>
+        `<button type="button" class="recent-chip" data-ref-index="${index}" title="${escapeHtml(entry.description)}">${escapeHtml(entry.description)}</button>`
+    ).join('');
+    const group = document.getElementById('recent-refs-group');
+    if (group) group.classList.toggle('hidden-field', recentList.length === 0);
+}
+
+function applyRecentReference(entry) {
+    if (!entry) return;
+    if (elements.catSelect) {
+        elements.catSelect.value = entry.categorie || '';
+        elements.catSelect.dispatchEvent(new Event('change'));
+    }
+    if (!elements.descSelect) return;
+    const option = [...elements.descSelect.options].find(opt => (entry.id ? opt.dataset.id === entry.id : opt.value === entry.description));
+    if (option) {
+        option.selected = true;
+        elements.descSelect.dispatchEvent(new Event('change'));
+    }
+    // Los eventos de arriba no suben hasta el formulario: el borrador se actualiza aquí
+    scheduleDraftSave();
+}
+
+// Lo ya anotado para el bon, la tournée o la soumission que se está escribiendo
+function updateVisitSummary() {
+    const el = elements.visitSummary;
+    if (!el) return;
+    const summary = visitSummary(store.getAllRecords(), {
+        tache: elements.tacheSelect ? elements.tacheSelect.value : '',
+        num_bon: elements.numBonInput ? elements.numBonInput.value : '',
+        num_tache: elements.numTacheInput ? elements.numTacheInput.value : '',
+        num_soumission: elements.numSoumissionInput ? elements.numSoumissionInput.value : '',
+        date: elements.dateInput ? elements.dateInput.value : ''
+    });
+    if (!summary || summary.lines === 0) {
+        el.classList.add('hidden-field');
+        el.textContent = '';
+        return;
+    }
+    el.textContent = `${DOC_LABELS[summary.kind]} #${summary.number} : ${pluralize(summary.lines, 'ligne')} et ${pluralize(summary.bulbs, 'ampoule')} déjà enregistrées ce jour-là.`;
+    el.classList.remove('hidden-field');
+}
+
+export function initEntryForm() {
+    if (!elements.form) return;
+    const onFormChange = () => {
+        updateVisitSummary();
+        scheduleDraftSave();
+    };
+    elements.form.addEventListener('input', onFormChange);
+    elements.form.addEventListener('change', onFormChange);
+    if (elements.recentRefs) {
+        elements.recentRefs.addEventListener('click', (event) => {
+            const chip = event.target.closest('[data-ref-index]');
+            if (chip) applyRecentReference(recentList[Number(chip.dataset.refIndex)]);
+        });
+    }
+}
+
 export function resetFormAndRefresh(keepVisit = false) {
+    // Lo escrito ya se guardó o se descartó: el borrador anterior ya no vale
+    cancelDraftSave();
+    store.clearDraft();
+
     // form.reset() también desmarca la casilla: su estado se conserva
     const keepChecked = shouldKeepVisit();
     const visit = keepVisit ? {
@@ -372,6 +554,9 @@ export function resetFormAndRefresh(keepVisit = false) {
             cancelBtn.style.display = 'none';
         }
     }
+
+    if (visit) saveDraftNow();
+    updateVisitSummary();
 }
 
 // Devuelve al formulario los datos de la visita para anotar otra línea del mismo bon o tournée

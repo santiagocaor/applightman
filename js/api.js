@@ -114,7 +114,7 @@ export async function saveRecordToCloud(record) {
         await postToApi({ action: 'addRecordsBatch', records: [record] });
 
         if (navigator.vibrate) navigator.vibrate([200]);
-        ui.showToast("Enregistrement réussi !", "success");
+        ui.showSavedToast("Enregistrement réussi !", "success", record.uuid);
         store.addToHistory(record);
         store.setRecords([record, ...store.records]);
         ui.resetFormAndRefresh(ui.shouldKeepVisit());
@@ -136,7 +136,7 @@ function addToOfflineQueue(record) {
 
     if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     const reason = navigator.onLine ? "Serveur inaccessible" : "Hors ligne";
-    ui.showToast(`${reason} : Enregistrement sauvegardé localement. Il sera synchronisé dès que la connexion sera rétablie.`, "warning");
+    ui.showSavedToast(`${reason} : Enregistrement sauvegardé localement. Il sera synchronisé dès que la connexion sera rétablie.`, "warning", record.uuid);
 }
 
 let isSyncing = false;

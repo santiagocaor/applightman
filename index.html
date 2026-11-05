@@ -62,6 +62,10 @@
                             <input type="date" id="date" name="date" required>
                             <span id="date-display" class="date-display-overlay"></span>
                         </div>
+                        <div class="quick-dates">
+                            <button type="button" class="quick-date-btn" data-quick-date="0">Aujourd'hui</button>
+                            <button type="button" class="quick-date-btn" data-quick-date="-1">Hier</button>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -87,6 +91,8 @@
                         <input type="text" id="num_tache" name="num_tache" placeholder="Numéro de la tournée">
                     </div>
 
+                    <p id="visit-summary" class="visit-summary hidden-field" role="status"></p>
+
                     <div class="form-group" id="group-locataire">
                         <label for="locataire"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">apartment</span> Locataire</label>
                         <select id="locataire" name="locataire">
@@ -101,6 +107,11 @@
                             <option value="" disabled selected>Sélectionnez l'étage</option>
                             <!-- Llenado fijo por JS -->
                         </select>
+                    </div>
+
+                    <div class="form-group hidden-field" id="recent-refs-group">
+                        <span class="recent-label">Articles récents</span>
+                        <div id="recent-refs" class="recent-refs"></div>
                     </div>
 
                     <div class="form-group">
@@ -119,6 +130,12 @@
                         </select>
                     </div>
 
+                    <div class="form-group id-compact">
+                        <label for="id_item"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">qr_code_scanner</span> Id</label>
+                        <input type="text" id="id_item" name="id_item" readonly
+                            placeholder="Automatique selon la description">
+                    </div>
+
                     <div class="form-group">
                         <label for="quantite"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">tag</span> Quantité</label>
                         <div class="stepper-control">
@@ -131,12 +148,6 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="id_item"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">qr_code_scanner</span> Id</label>
-                        <input type="text" id="id_item" name="id_item" readonly
-                            placeholder="Sera rempli automatiquement en sélectionnant la description">
-                    </div>
-
-                    <div class="form-group">
                         <label for="note"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">comment</span> Note (optionnel)</label>
                         <input type="text" id="note" name="note" placeholder="Ajouter une note ou précision">
                     </div>
@@ -146,6 +157,7 @@
                             <input type="checkbox" id="keep-visit">
                             <span>Enchaîner les lignes : garder la date, la tâche, le numéro, le locataire et l'étage après l'enregistrement</span>
                         </label>
+                        <button type="button" id="clear-form-btn" class="quick-date-btn" style="margin-top: 0.6rem;">Vider le formulaire</button>
                     </div>
 
                     <div class="form-actions">
