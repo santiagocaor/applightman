@@ -256,6 +256,15 @@ export function editRecordLocally(uuid, updatedRecord) {
 }
 
 // Última comparación elegida en cada gráfica de Stats ("refs", "locataires"): se conserva para no volver a buscarla
+// El historial se muestra agrupado por bon o tournée salvo que se desactive
+export function getHistoryGrouped() {
+    return readJson('lightman_history_grouped', true) !== false;
+}
+
+export function setHistoryGrouped(value) {
+    writeJson('lightman_history_grouped', Boolean(value));
+}
+
 // Si está activo, tras guardar se conservan los datos de la visita para anotar la línea siguiente
 export function getKeepVisit() {
     return readJson('lightman_keep_visit', false) === true;

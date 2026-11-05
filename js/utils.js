@@ -134,6 +134,26 @@ export function etageKey(record) {
     return String(record.etage ?? '').trim();
 }
 
+export const DOC_LABELS = { bon: 'Bon de travail', tournee: 'Tournée', soumission: 'Soumission' };
+
+// Tipo y número del bon, la tournée o la soumission de un registro; null si la tarea no lleva número.
+// Algunas hojas antiguas guardan el número en otra columna: se usa la propia y, si está vacía, cualquier otra.
+export function docReference(record) {
+    const task = String(record.tache ?? '').trim().toLowerCase();
+    let kind = null;
+    if (task.includes('bon') || task.includes('travail') || task.includes('trabajo')) {
+        kind = 'bon';
+    } else if (task.includes('soumission')) {
+        kind = 'soumission';
+    } else if (task.includes('tourn') || task.includes('ronde')) {
+        kind = 'tournee';
+    }
+    if (!kind) return null;
+    const own = { bon: record.num_bon, tournee: record.num_tache, soumission: record.num_soumission }[kind];
+    const number = String(own || record.num_bon || record.num_tache || record.num_soumission || '').trim();
+    return { kind, number };
+}
+
 // Bon de travail y tournées distintos por mes. Cada bon o tournée genera varias filas (una por
 // material), así que se cuenta cada número una sola vez dentro del mes. Las filas sin número no se pueden
 // distinguir y no cuentan (se devuelven en withoutNumber). Devuelve los meses seguidos, con 0 donde no hubo ninguno.
@@ -141,26 +161,15 @@ export function uniqueDocsByMonth(records) {
     const seen = { bon: {}, tournee: {} };
     let withoutNumber = 0;
     records.forEach(record => {
-        const task = String(record.tache ?? '').trim().toLowerCase();
-        let kind = null;
-        let number = '';
-        if (task.includes('bon') || task.includes('travail') || task.includes('trabajo')) {
-            kind = 'bon';
-            // Algunas hojas antiguas guardan el número en otra columna; se usa la primera que tenga valor
-            number = record.num_bon || record.num_tache || record.num_soumission;
-        } else if (task.includes('tourn') || task.includes('ronde')) {
-            kind = 'tournee';
-            number = record.num_tache || record.num_bon || record.num_soumission;
-        }
+        const doc = docReference(record);
         const month = recordMonthKey(record);
-        const id = String(number ?? '').trim().toLowerCase();
-        if (!kind || !month) return;
-        if (!id) {
+        if (!doc || doc.kind === 'soumission' || !month) return;
+        if (!doc.number) {
             withoutNumber += 1;
             return;
         }
-        seen[kind][month] = seen[kind][month] || new Set();
-        seen[kind][month].add(id);
+        seen[doc.kind][month] = seen[doc.kind][month] || new Set();
+        seen[doc.kind][month].add(doc.number.toLowerCase());
     });
 
     const keys = [...Object.keys(seen.bon), ...Object.keys(seen.tournee)].sort();
@@ -170,6 +179,103 @@ export function uniqueDocsByMonth(records) {
     const tournee = countsFor('tournee');
     const sum = (values) => values.reduce((total, value) => total + value, 0);
     return { months, bon, tournee, totalBon: sum(bon), totalTournee: sum(tournee), withoutNumber };
+}
+
+function recordDay(record) {
+    const raw = record.date || record.fecha;
+    if (!raw) return '';
+    const date = parseRecordDate(raw);
+    return isNaN(date) ? '' : localDateString(date);
+}
+
+// Ordena los registros del historial: 'date-desc' (por defecto), 'date-asc' o 'qty-desc'
+export function sortRecords(records, mode = 'date-desc') {
+    const time = (record) => {
+        const value = parseRecordDate(record.fecha || record.date || 0).getTime();
+        return isNaN(value) ? 0 : value;
+    };
+    const qty = (record) => Number(record.quantite || 0);
+    const compare = {
+        'date-asc': (a, b) => time(a) - time(b),
+        'qty-desc': (a, b) => qty(b) - qty(a) || time(b) - time(a)
+    }[mode] || ((a, b) => time(b) - time(a));
+    return [...records].sort(compare);
+}
+
+// Junta las líneas de un mismo bon, tournée o soumission en la misma fecha. Lo que no tiene número, o
+// tiene una sola línea, queda como línea suelta. Conserva el orden en que aparece cada visita.
+export function groupHistory(records) {
+    const items = [];
+    const groups = new Map();
+    records.forEach(record => {
+        const qty = Number(record.quantite || 0);
+        const doc = docReference(record);
+        if (!doc || !doc.number) {
+            items.push({ type: 'single', record, total: qty });
+            return;
+        }
+        const day = recordDay(record);
+        const key = `${day}|${doc.kind}|${doc.number.toLowerCase()}`;
+        let group = groups.get(key);
+        if (!group) {
+            group = { type: 'group', key, kind: doc.kind, number: doc.number, day, lines: [], total: 0 };
+            groups.set(key, group);
+            items.push(group);
+        }
+        group.lines.push(record);
+        group.total += qty;
+    });
+
+    return items.map(item => {
+        if (item.type !== 'group') return item;
+        if (item.lines.length === 1) return { type: 'single', record: item.lines[0], total: item.total };
+        const unique = (values) => [...new Set(values.map(value => String(value ?? '').trim()).filter(Boolean))];
+        return {
+            ...item,
+            etages: unique(item.lines.map(line => line.etage)).sort(naturalCompare),
+            locataires: unique(item.lines.map(line => line.locataire)).sort()
+        };
+    });
+}
+
+// Con el orden por cantidad, cada visita compite con su total y no con su línea más grande
+export function orderHistoryItems(items, mode) {
+    return mode === 'qty-desc' ? [...items].sort((a, b) => b.total - a.total) : items;
+}
+
+// Cifras del resultado del historial: líneas, ampolletas y bons o tournées distintos
+export function historyTotals(records) {
+    const docs = uniqueDocsByMonth(records);
+    return {
+        lines: records.length,
+        bulbs: records.reduce((sum, record) => sum + Number(record.quantite || 0), 0),
+        bons: docs.totalBon,
+        tournees: docs.totalTournee
+    };
+}
+
+const CSV_HEADERS = ['Date', 'Type de tâche', 'Tournée', 'Bon de travail', 'Soumission', 'Locataire', 'Étage', 'Catégorie', 'Description', 'Quantité', 'Id', 'Note'];
+
+// Una celda que empieza con = + - @ se abriría como fórmula en Excel; en los textos libres se antepone un apóstrofo.
+// Étage y los números se dejan intactos (un piso puede ser "-1").
+function csvCell(value, freeText) {
+    let text = String(value ?? '');
+    const risky = freeText ? /^[=+\-@\t\r]/ : /^[=@]/;
+    if (risky.test(text)) text = `'${text}`;
+    return /[";\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+// Texto CSV (separador ;, como espera Excel en francés) de los registros indicados
+export function recordsToCsv(records, describe = (record) => record.description) {
+    const freeTextColumns = new Set([1, 5, 7, 8, 11]);
+    const rows = records.map(record => [
+        recordDay(record), record.tache, record.num_tache, record.num_bon, record.num_soumission,
+        record.locataire, record.etage, record.categorie, describe(record), Number(record.quantite || 0),
+        record.id_item, record.note
+    ]);
+    return [CSV_HEADERS, ...rows]
+        .map((row, rowIndex) => row.map((cell, index) => csvCell(cell, rowIndex > 0 && freeTextColumns.has(index))).join(';'))
+        .join('\r\n');
 }
 
 // Nombre legible de la referencia: la descripción, o su identificador si no la tiene

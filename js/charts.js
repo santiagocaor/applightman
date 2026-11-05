@@ -307,6 +307,7 @@ export function updateDashboard() {
         if (ui.elements.filterHistoryTache) ui.elements.filterHistoryTache.value = 'all';
         if (ui.elements.filterHistoryCategorie) ui.elements.filterHistoryCategorie.value = 'all';
         if (ui.elements.searchHistory) ui.elements.searchHistory.value = '';
+        refreshHistoryFilterOptions();
 
         if (canvasId === 'monthlyBulbsChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = sortedMonths[index] || 'all';
@@ -331,7 +332,8 @@ export function updateDashboard() {
         } else if (ui.elements.searchHistory) {
             ui.elements.searchHistory.value = label;
         }
-        
+
+        refreshHistoryFilterOptions();
         ui.renderHistory();
     };
 
@@ -1114,7 +1116,6 @@ export function refreshStatsFilterOptions() {
         if (param !== 'tache' && current.tache === 'all') rows = rows.filter(r => !isReceptionTask(r.tache));
         return rows;
     };
-    const withSelected = (values, selected) => (selected !== 'all' && !values.includes(selected) ? [...values, selected] : values);
 
     const months = unique(pool('month').map(recordMonthKey)).sort().reverse();
     const presetValues = PERIOD_PRESETS.map(item => item.value);
@@ -1187,22 +1188,60 @@ export function initStatsFilters() {
     }
 }
 
+// Lo mismo para Historique: sus listas también se ajustan a los demás filtros puestos
+export function refreshHistoryFilterOptions() {
+    if (!ui.elements.filterHistoryMonth) return;
+
+    const allRecords = store.getAllRecords();
+    const valueOf = (control) => (control ? control.value || 'all' : 'all');
+    const current = {
+        month: valueOf(ui.elements.filterHistoryMonth),
+        etage: valueOf(ui.elements.filterHistoryEtage),
+        locataire: valueOf(ui.elements.filterHistoryLocataire),
+        tache: valueOf(ui.elements.filterHistoryTache),
+        categorie: valueOf(ui.elements.filterHistoryCategorie)
+    };
+    const pool = (param) => store.filterRecords(allRecords, { ...current, [param]: 'all' });
+
+    fillFilter(ui.elements.filterHistoryMonth, 'Toutes les périodes',
+        withSelected(unique(pool('month').map(recordMonthKey)).sort().reverse(), current.month), shortMonthLabel);
+    fillFilter(ui.elements.filterHistoryEtage, 'Tous les étages',
+        withSelected(unique(pool('etage').map(etageKey)).sort(naturalCompare), current.etage));
+    fillFilter(ui.elements.filterHistoryTache, 'Toutes les interventions',
+        withSelected(unique(pool('tache').map(r => r.tache)).sort(), current.tache));
+    fillFilter(ui.elements.filterHistoryLocataire, 'Tous les locataires',
+        withSelected(unique(pool('locataire').map(r => String(r.locataire ?? '').trim())).sort(), current.locataire));
+    fillFilter(ui.elements.filterHistoryCategorie, 'Toutes les catégories',
+        withSelected(unique(pool('categorie').map(r => r.categorie)).sort(), current.categorie));
+}
+
+export function onHistoryFiltersChange() {
+    refreshHistoryFilterOptions();
+    ui.renderHistory();
+}
+
+export function resetHistoryFilters() {
+    [
+        ui.elements.filterHistoryMonth,
+        ui.elements.filterHistoryEtage,
+        ui.elements.filterHistoryLocataire,
+        ui.elements.filterHistoryTache,
+        ui.elements.filterHistoryCategorie
+    ].forEach(control => {
+        if (control) control.value = 'all';
+    });
+    if (ui.elements.searchHistory) ui.elements.searchHistory.value = '';
+    onHistoryFiltersChange();
+}
+
 export function populateFilters() {
     if (!ui.elements.filterMonth) return;
-
-    // Historique: sus listas siempre muestran todo lo que hay registrado
-    const allRecords = store.getAllRecords();
-    const sortedMonths = unique(allRecords.map(recordMonthKey)).sort().reverse();
-    fillFilter(ui.elements.filterHistoryMonth, 'Toutes les périodes', sortedMonths, shortMonthLabel);
-    fillFilter(ui.elements.filterHistoryEtage, 'Tous les étages', unique(allRecords.map(etageKey)).sort(naturalCompare));
-    fillFilter(ui.elements.filterHistoryTache, 'Toutes les interventions', unique(allRecords.map(r => r.tache)).sort());
-    fillFilter(ui.elements.filterHistoryLocataire, 'Tous les locataires', unique([
-        ...(store.appOptions.locataire || []),
-        ...allRecords.map(r => String(r.locataire ?? '').trim())
-    ].map(value => String(value ?? '').trim())).sort());
-    fillFilter(ui.elements.filterHistoryCategorie, 'Toutes les catégories', unique(allRecords.map(r => r.categorie)).sort());
-
+    refreshHistoryFilterOptions();
     refreshStatsFilterOptions();
+}
+
+function withSelected(values, selected) {
+    return selected !== 'all' && !values.includes(selected) ? [...values, selected] : values;
 }
 
 function unique(values) {

@@ -8,6 +8,12 @@ import {
     etageKey,
     uniqueDocsByMonth,
     recurrences,
+    docReference,
+    sortRecords,
+    groupHistory,
+    orderHistoryItems,
+    historyTotals,
+    recordsToCsv,
     monthInPeriod,
     recordMonths,
     monthlyReport,
@@ -422,4 +428,67 @@ test('monthInPeriod acepta todo, rangos de últimos meses, el año en curso o un
     assert.equal(monthInPeriod('2025-12', 'year', now), false);
     assert.equal(monthInPeriod('2026-10', '2026-10', now), true);
     assert.equal(monthInPeriod('2026-09', '2026-10', now), false);
+});
+
+test('docReference reconoce el tipo y usa otra columna si la propia está vacía', () => {
+    assert.deepEqual(docReference({ tache: 'Bon de travail', num_bon: ' 1001 ' }), { kind: 'bon', number: '1001' });
+    assert.deepEqual(docReference({ tache: 'Tournée', num_tache: '', num_bon: '77' }), { kind: 'tournee', number: '77' });
+    assert.deepEqual(docReference({ tache: 'Soumission', num_soumission: 'S1' }), { kind: 'soumission', number: 'S1' });
+    assert.deepEqual(docReference({ tache: 'Bon de travail' }), { kind: 'bon', number: '' });
+    assert.equal(docReference({ tache: 'Remplacement', num_bon: '5' }), null);
+});
+
+test('sortRecords ordena por fecha o por cantidad sin tocar el original', () => {
+    const records = [
+        { fecha: '2026-08-02', quantite: 1 },
+        { fecha: '2026-08-05', quantite: 9 },
+        { fecha: '2026-08-03', quantite: 4 }
+    ];
+    assert.deepEqual(sortRecords(records).map(r => r.fecha), ['2026-08-05', '2026-08-03', '2026-08-02']);
+    assert.deepEqual(sortRecords(records, 'date-asc').map(r => r.fecha), ['2026-08-02', '2026-08-03', '2026-08-05']);
+    assert.deepEqual(sortRecords(records, 'qty-desc').map(r => r.quantite), [9, 4, 1]);
+    assert.equal(records[0].fecha, '2026-08-02');
+});
+
+test('groupHistory junta las líneas de un bon del mismo día y deja sueltas las demás', () => {
+    const items = groupHistory([
+        { fecha: '2026-08-05', tache: 'Bon de travail', num_bon: '1001', etage: '10', locataire: 'A', quantite: 4 },
+        { fecha: '2026-08-05', tache: 'Bon de travail', num_bon: '1001', etage: '3', locataire: 'A', quantite: 2 },
+        { fecha: '2026-08-05', tache: 'Remplacement', quantite: 1 },
+        { fecha: '2026-08-04', tache: 'Bon de travail', num_bon: '1001', etage: '3', quantite: 7 },
+        { fecha: '2026-08-04', tache: 'Tournée', num_tache: 'T1', quantite: 3 },
+        { fecha: '2026-08-04', tache: 'Tournée', num_tache: '', quantite: 5 }
+    ]);
+    assert.deepEqual(items.map(item => item.type), ['group', 'single', 'single', 'single', 'single']);
+    assert.equal(items[0].lines.length, 2);
+    assert.equal(items[0].total, 6);
+    assert.deepEqual(items[0].etages, ['3', '10']);
+    assert.deepEqual(items[0].locataires, ['A']);
+    // El mismo bon en otro día es otra visita; la línea única conserva su total
+    assert.equal(items[2].record.quantite, 7);
+    assert.equal(items[2].total, 7);
+});
+
+test('orderHistoryItems por cantidad compara el total de cada visita', () => {
+    const items = [{ total: 3 }, { total: 10 }, { total: 5 }];
+    assert.deepEqual(orderHistoryItems(items, 'qty-desc').map(item => item.total), [10, 5, 3]);
+    assert.deepEqual(orderHistoryItems(items, 'date-desc').map(item => item.total), [3, 10, 5]);
+});
+
+test('historyTotals cuenta líneas, ampolletas y bons o tournées distintos', () => {
+    assert.deepEqual(historyTotals([
+        { fecha: '2026-08-05', tache: 'Bon de travail', num_bon: '1', quantite: 4 },
+        { fecha: '2026-08-05', tache: 'Bon de travail', num_bon: '1', quantite: 2 },
+        { fecha: '2026-08-06', tache: 'Tournée', num_tache: 'T', quantite: 1 },
+        { fecha: '2026-08-06', tache: 'Remplacement', quantite: 3 }
+    ]), { lines: 4, bulbs: 10, bons: 1, tournees: 1 });
+});
+
+test('recordsToCsv escapa celdas, protege fórmulas y respeta pisos negativos', () => {
+    const csv = recordsToCsv([
+        { fecha: '2026-08-05', tache: 'Bon de travail', num_bon: '1001', locataire: 'A; B', etage: '-1', categorie: 'Tube', description: 'F32 "T8"', quantite: 4, id_item: 'A1', note: '=SUM(1)' }
+    ]);
+    const [header, line] = csv.split('\r\n');
+    assert.equal(header, 'Date;Type de tâche;Tournée;Bon de travail;Soumission;Locataire;Étage;Catégorie;Description;Quantité;Id;Note');
+    assert.equal(line, '2026-08-05;Bon de travail;;1001;;"A; B";-1;Tube;"F32 ""T8""";4;A1;\'=SUM(1)');
 });

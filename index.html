@@ -497,8 +497,19 @@
                 <h2><span aria-hidden="true" class="material-symbols-rounded">list</span> Historique des Remplacements</h2>
                 <p class="help-text">Visualisez et recherchez tous les remplacements enregistrés.</p>
 
-                <!-- Filtres Historique -->
-                <div style="margin-bottom: 1.25rem;">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <div class="search-input-container">
+                        <span aria-hidden="true" class="material-symbols-rounded search-icon">search</span>
+                        <input type="text" id="search-history" aria-label="Rechercher dans l'historique"
+                            placeholder="Rechercher par description, étage, tâche, note...">
+                    </div>
+                </div>
+
+                <button type="button" id="btn-toggle-history-filters" class="filters-toggle" aria-expanded="true" aria-controls="history-filters-body">
+                    <span class="filters-toggle-title"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary);">filter_alt</span> Filtres <span id="history-filters-count" class="filters-count hidden-field">0</span></span>
+                    <span id="history-filters-chevron" aria-hidden="true" class="material-symbols-rounded">expand_less</span>
+                </button>
+                <div id="history-filters-body" style="margin-top: 1rem;">
                     <div
                         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem;">
                         <div class="form-group" style="margin-bottom: 0;">
@@ -548,18 +559,30 @@
                     </button>
                 </div>
 
-                <div class="form-group" style="margin-bottom: 1.25rem;">
-                    <div class="search-input-container">
-                        <span aria-hidden="true" class="material-symbols-rounded search-icon">search</span>
-                        <input type="text" id="search-history" aria-label="Rechercher dans l'historique"
-                            placeholder="Rechercher par description, étage, tâche, note...">
+                <div class="history-toolbar">
+                    <div class="history-summary-text">
+                        <span id="history-summary">Total: 0 remplacements</span>
+                    </div>
+                    <div class="history-tools">
+                        <label class="history-tool" for="history-sort">
+                            <span>Trier</span>
+                            <select id="history-sort" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
+                                <option value="date-desc">Date : récent d'abord</option>
+                                <option value="date-asc">Date : ancien d'abord</option>
+                                <option value="qty-desc">Quantité : plus grande d'abord</option>
+                            </select>
+                        </label>
+                        <label class="keep-visit-label" for="history-group">
+                            <input type="checkbox" id="history-group">
+                            <span>Grouper par bon / tournée</span>
+                        </label>
+                        <button type="button" id="btn-export-history" class="btn-secondary" style="display: inline-flex; align-items: center; gap: 0.4rem; height: 36px; font-size: 0.85rem; padding: 0 0.85rem;">
+                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1.1rem;">download</span> Exporter en CSV
+                        </button>
                     </div>
                 </div>
-
-                <div class="history-summary-text">
-                    <span id="history-summary">Total: 0 remplacements</span>
-                </div>
             </div> <!-- End of the card containing filters and search -->
+            <div id="history-active-filters" class="active-filters-bar hidden-field" role="status"></div>
 
             <div id="history-container">
                 <p class="help-text">Aucun enregistrement récent.</p>

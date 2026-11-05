@@ -1,5 +1,5 @@
 // js/ui.js
-import { getCategoryColor, escapeHtml, localDateString, parseRecordDate } from './utils.js';
+import { getCategoryColor, escapeHtml, localDateString, parseRecordDate, sortRecords, groupHistory, orderHistoryItems, historyTotals, recordsToCsv, docReference, DOC_LABELS } from './utils.js';
 import * as store from './store.js';
 import { deleteRecord } from './api.js';
 
@@ -32,6 +32,10 @@ export const elements = {
     syncBadge: document.getElementById('sync-badge'),
     syncStatus: document.getElementById('sync-status'),
     keepVisitInput: document.getElementById('keep-visit'),
+    historySort: document.getElementById('history-sort'),
+    historyGroupToggle: document.getElementById('history-group'),
+    historyExportBtn: document.getElementById('btn-export-history'),
+    historyActiveFilters: document.getElementById('history-active-filters'),
     filterMonth: document.getElementById('filter-month'),
     filterEtage: document.getElementById('filter-etage'),
     filterLocataire: document.getElementById('filter-locataire'),
@@ -61,7 +65,8 @@ export const elements = {
     notesListContainer: document.getElementById('notes-list-container')
 };
 
-const HISTORY_PAGE_SIZE = 200;
+const HISTORY_PAGE_SIZE = 150;
+let lastFilteredHistory = [];
 let historyVisibleCount = HISTORY_PAGE_SIZE;
 let historyFilterKey = "";
 
@@ -387,17 +392,172 @@ function restoreVisit(visit) {
     }
 }
 
+const HISTORY_MONTH_NAMES = ["janv", "févr", "mars", "avr", "mai", "juin", "juil", "août", "sept", "oct", "nov", "déc"];
+
+function formatHistoryDate(value) {
+    try {
+        const d = parseRecordDate(value);
+        if (!isNaN(d)) return `${d.getDate()}-${HISTORY_MONTH_NAMES[d.getMonth()]}-${d.getFullYear()}`;
+    } catch (error) {
+        console.warn("Date illisible :", error);
+    }
+    return String(value || "-");
+}
+
+// Descripción visible de un registro (la del catálogo si existe)
+function historyDescription(record) {
+    const foundOpt = store.appOptions.opciones.find(opt => opt.id === record.id_item);
+    return (foundOpt && foundOpt.description) ? foundOpt.description : (record.description || record.id_item || 'N/A');
+}
+
+function historyActionsHtml(r) {
+    const pendingLabel = r.isPending ? 'En attente de synchronisation' : 'Synchronisé';
+    const syncStyle = r.isPending
+        ? 'background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2);'
+        : 'background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2);';
+    return `
+        <div class="hr-actions">
+            <div role="img" aria-label="${pendingLabel}" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; ${syncStyle}" title="${pendingLabel}">
+                <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem;">${r.isPending ? 'cloud_upload' : 'cloud_done'}</span>
+            </div>
+            ${r.uuid ? `
+            <button class="icon-btn edit-btn" data-uuid="${escapeHtml(r.uuid)}" style="width: 28px; height: 28px; border-radius: 50%; background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); color: var(--primary); padding: 0; display: flex; align-items: center; justify-content: center;" title="Modifier" aria-label="Modifier cet enregistrement">
+                <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem;">edit</span>
+            </button>
+            <button class="icon-btn delete-btn" data-uuid="${escapeHtml(r.uuid)}" style="width: 28px; height: 28px; border-radius: 50%; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: var(--error); padding: 0; display: flex; align-items: center; justify-content: center;" title="Supprimer" aria-label="Supprimer cet enregistrement">
+                <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem;">delete</span>
+            </button>` : ''}
+        </div>`;
+}
+
+// Línea compacta del historial; dentro de una visita agrupada se omite lo que ya dice la cabecera
+function historyRowHtml(r, inGroup) {
+    const doc = docReference(r);
+    const docText = doc ? `${DOC_LABELS[doc.kind]}${doc.number ? ` #${doc.number}` : ''}` : '';
+    const etageText = r.etage !== undefined && r.etage !== null && String(r.etage).trim() !== '' ? `Étage ${String(r.etage).trim()}` : '';
+    const parts = inGroup
+        ? [etageText, r.categorie, r.id_item]
+        : [docText || r.tache, r.locataire, etageText, formatHistoryDate(r.fecha || r.date), r.categorie, r.id_item];
+    const meta = parts.filter(Boolean).join(' · ');
+
+    return `
+        <div class="history-row" style="border-left-color: ${getCategoryColor(r.categorie)};">
+            <div class="hr-main">
+                <div class="hr-desc">${escapeHtml(historyDescription(r))}</div>
+                <div class="hr-meta">${escapeHtml(meta)}</div>
+                ${r.note ? `<div class="hr-note">${escapeHtml(r.note)}</div>` : ''}
+            </div>
+            <div class="hr-side">
+                <span class="hr-qty" title="Quantité">${escapeHtml(r.quantite)}</span>
+                ${historyActionsHtml(r)}
+            </div>
+        </div>`;
+}
+
+// Cabecera de una visita (bon, tournée o soumission) con todas sus líneas dentro
+function historyGroupHtml(group, open) {
+    const dateLabel = group.day ? formatHistoryDate(group.day) : '';
+    const etageText = group.etages.length > 0 ? `Étage${group.etages.length > 1 ? 's' : ''} ${group.etages.join(', ')}` : '';
+    const meta = [dateLabel, group.locataires.join(', '), etageText].filter(Boolean).join(' · ');
+    const count = group.lines.length;
+    return `
+        <details class="history-group"${open ? ' open' : ''}>
+            <summary>
+                <div class="hg-main">
+                    <span class="hg-title">${escapeHtml(DOC_LABELS[group.kind])} #${escapeHtml(group.number)}</span>
+                    <span class="hg-meta">${escapeHtml(meta)}</span>
+                </div>
+                <div class="hg-side">
+                    <span class="hr-qty" title="Ampoules">${group.total}</span>
+                    <span class="hg-lines">${count} lignes</span>
+                </div>
+            </summary>
+            <div class="hg-body">${group.lines.map(line => historyRowHtml(line, true)).join('')}</div>
+        </details>`;
+}
+
+// Contador en el título de Filtres y barra fija con los filtros puestos (selectores y búsqueda)
+function updateHistoryActiveFilters(searchText) {
+    const defs = [
+        [elements.filterHistoryMonth, 'Période'],
+        [elements.filterHistoryEtage, 'Étage'],
+        [elements.filterHistoryLocataire, 'Locataire'],
+        [elements.filterHistoryTache, 'Tâche'],
+        [elements.filterHistoryCategorie, 'Catégorie']
+    ];
+    const selects = defs
+        .filter(([control]) => control && control.value !== 'all')
+        .map(([control, label]) => `${label} : ${control.selectedOptions[0] ? control.selectedOptions[0].textContent : control.value}`);
+    const active = searchText ? [...selects, `Recherche : ${searchText}`] : selects;
+
+    const count = document.getElementById('history-filters-count');
+    if (count) {
+        count.textContent = selects.length;
+        count.classList.toggle('hidden-field', selects.length === 0);
+    }
+
+    const bar = elements.historyActiveFilters;
+    if (!bar) return;
+    bar.classList.toggle('hidden-field', active.length === 0);
+    bar.innerHTML = active.length === 0 ? '' : `<span>Filtres actifs :</span>${active.map(text => `<span class="filter-chip">${escapeHtml(text)}</span>`).join('')}<button type="button" data-clear-history-filters>Réinitialiser</button>`;
+}
+
+function pluralize(count, singular, plural = `${singular}s`) {
+    return `${count} ${count === 1 ? singular : plural}`;
+}
+
+// Filtros plegables (cerrados de inicio en pantallas pequeñas), orden y agrupación recordados
+export function initHistoryControls() {
+    const toggle = document.getElementById('btn-toggle-history-filters');
+    const body = document.getElementById('history-filters-body');
+    const chevron = document.getElementById('history-filters-chevron');
+    if (toggle && body) {
+        const setOpen = (open) => {
+            body.classList.toggle('hidden-field', !open);
+            toggle.setAttribute('aria-expanded', String(open));
+            if (chevron) chevron.textContent = open ? 'expand_less' : 'expand_more';
+        };
+        setOpen(!(window.matchMedia && window.matchMedia('(max-width: 767px)').matches));
+        toggle.addEventListener('click', () => setOpen(body.classList.contains('hidden-field')));
+    }
+
+    if (elements.historyGroupToggle) {
+        elements.historyGroupToggle.checked = store.getHistoryGrouped();
+        elements.historyGroupToggle.addEventListener('change', () => {
+            store.setHistoryGrouped(elements.historyGroupToggle.checked);
+            renderHistory();
+        });
+    }
+    if (elements.historySort) elements.historySort.addEventListener('change', renderHistory);
+    if (elements.historyExportBtn) elements.historyExportBtn.addEventListener('click', exportHistoryCsv);
+}
+
+// Descarga lo que se está viendo (con los filtros y la búsqueda actuales) como archivo CSV
+export function exportHistoryCsv() {
+    if (lastFilteredHistory.length === 0) {
+        showToast("Aucun enregistrement à exporter.", "warning");
+        return;
+    }
+    const csv = recordsToCsv(lastFilteredHistory, historyDescription);
+    // El BOM hace que Excel lea bien los acentos
+    const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `lightman-historique-${localDateString()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast(`${pluralize(lastFilteredHistory.length, 'ligne exportée', 'lignes exportées')}.`, "success");
+}
+
 export function renderHistory() {
     if (!elements.historyContainer) return;
-    
-    let history = store.getAllRecords();
 
-    history.sort((a, b) => {
-        const dateA = parseRecordDate(a.fecha || a.date || 0).getTime();
-        const dateB = parseRecordDate(b.fecha || b.date || 0).getTime();
-        return dateB - dateA;
-    });
-    
+    const sortMode = elements.historySort ? elements.historySort.value : 'date-desc';
+    let history = sortRecords(store.getAllRecords(), sortMode);
+
     // [FIX M-7] Usar la función centralizada de filtrado en lugar de duplicar la lógica
     if (elements.filterHistoryMonth) {
         history = store.filterRecords(history, {
@@ -408,16 +568,14 @@ export function renderHistory() {
             categorie: elements.filterHistoryCategorie ? elements.filterHistoryCategorie.value : 'all'
         });
     }
-    
-    const searchVal = elements.searchHistory ? elements.searchHistory.value.trim().toLowerCase() : "";
+
+    const searchText = elements.searchHistory ? elements.searchHistory.value.trim() : "";
+    const searchVal = searchText.toLowerCase();
     if (searchVal !== "") {
         const searchTerms = searchVal.split(/\s+/);
-        
+
         history = history.filter(r => {
-            const foundOpt = store.appOptions.opciones.find(opt => opt.id === r.id_item);
-            const resolvedDesc = (foundOpt && foundOpt.description) ? foundOpt.description : (r.description || "");
-            
-            const desc = String(resolvedDesc).toLowerCase();
+            const desc = String(historyDescription(r)).toLowerCase();
             const id = String(r.id_item || "").toLowerCase();
             const etage = String(r.etage || "").trim().toLowerCase();
             const locataire = String(r.locataire || "").toLowerCase();
@@ -431,10 +589,10 @@ export function renderHistory() {
             return searchTerms.every(term => {
                 const isNumeric = !isNaN(term) && term.trim() !== "";
                 const matchEtage = isNumeric ? (etage === term) : etage.includes(term);
-                
-                return desc.includes(term) || 
-                       id.includes(term) || 
-                       matchEtage || 
+
+                return desc.includes(term) ||
+                       id.includes(term) ||
+                       matchEtage ||
                        numTache.includes(term) ||
                        numBon.includes(term) ||
                        numSoumission.includes(term) ||
@@ -445,11 +603,18 @@ export function renderHistory() {
             });
         });
     }
-    
+
+    lastFilteredHistory = history;
+    updateHistoryActiveFilters(searchText);
+
     if (elements.historySummary) {
-        elements.historySummary.textContent = `Total: ${history.length} remplacement${history.length !== 1 ? 's' : ''}`;
+        const totals = historyTotals(history);
+        const parts = [pluralize(totals.lines, 'ligne'), pluralize(totals.bulbs, 'ampoule')];
+        if (totals.bons > 0) parts.push(`${pluralize(totals.bons, 'bon')} de travail`);
+        if (totals.tournees > 0) parts.push(pluralize(totals.tournees, 'tournée'));
+        elements.historySummary.textContent = parts.join(' · ');
     }
-    
+
     if (history.length === 0) {
         elements.historyContainer.innerHTML = `
             <div class="empty-state-container">
@@ -459,10 +624,13 @@ export function renderHistory() {
         `;
         return;
     }
-    
+
     // Se dibuja por tramos: los totales y filtros siguen contando todos los registros
+    const grouped = store.getHistoryGrouped();
     const filterKey = JSON.stringify([
         searchVal,
+        sortMode,
+        grouped,
         elements.filterHistoryMonth?.value,
         elements.filterHistoryEtage?.value,
         elements.filterHistoryLocataire?.value,
@@ -473,114 +641,15 @@ export function renderHistory() {
         historyFilterKey = filterKey;
         historyVisibleCount = HISTORY_PAGE_SIZE;
     }
-    const remainingCount = Math.max(0, history.length - historyVisibleCount);
 
-    elements.historyContainer.innerHTML = history.slice(0, historyVisibleCount).map((r, index) => {
-        let dateStr;
-        try {
-            const d = parseRecordDate(r.fecha || r.date);
-            if (!isNaN(d)) {
-                const months = ["janv", "févr", "mars", "avr", "mai", "juin", "juil", "août", "sept", "oct", "nov", "déc"];
-                dateStr = `${d.getDate()}-${months[d.getMonth()]}-${d.getFullYear()}`;
-            } else {
-                dateStr = r.fecha || r.date || "-";
-            }
-        } catch(e) {
-            dateStr = r.fecha || r.date || "-";
-        }
+    const items = grouped
+        ? orderHistoryItems(groupHistory(history), sortMode)
+        : history.map(record => ({ type: 'single', record, total: Number(record.quantite || 0) }));
+    const remainingCount = Math.max(0, items.length - historyVisibleCount);
 
-        const num = r.num_tache || r.num_bon || r.num_soumission;
-        const detailsVal = num ? `#${num}` : "-";
-
-        const foundOpt = store.appOptions.opciones.find(opt => opt.id === r.id_item);
-        const displayDesc = (foundOpt && foundOpt.description) ? foundOpt.description : (r.description || r.id_item || 'N/A');
-
-        const catColor = getCategoryColor(r.categorie);
-
-        return `
-            <div class="pro-history-card history-item-animate" style="animation-delay: ${Math.min(index * 0.05, 0.5)}s; border-left: 4px solid ${catColor}; position: relative;">
-                <div class="pro-card-header" style="display: flex; flex-direction: column; gap: 0.5rem; padding-right: 2.5rem;">
-                    <div style="display: flex; align-items: flex-start;">
-                        <h3 class="pro-desc" style="margin: 0; line-height: 1.3; display: flex; align-items: center; gap: 0.35rem;">
-                            <span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); font-size: 1.15rem; flex-shrink: 0;">lightbulb</span>
-                            ${escapeHtml(displayDesc)}
-                        </h3>
-                    </div>
-                    
-                    <div class="pro-qty-badge" style="position: absolute; top: 1rem; right: 1rem; width: 34px; height: 34px; box-shadow: none;">
-                        <span class="qty-val" style="font-size: 1rem; font-weight: 700;">${escapeHtml(r.quantite)}</span>
-                    </div>
-                    
-                    <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500; display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap;">
-                        <span style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem; color: var(--primary);">build</span> ${escapeHtml(r.tache || 'N/A')}
-                        </span>
-                        <span style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem; color: var(--primary);">apartment</span> ${escapeHtml(r.locataire || '-')}
-                        </span>
-                    </div>
-                    
-                    <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem; flex-wrap: wrap;">
-                        <span class="pro-id-badge" style="height: 28px; padding: 0 0.65rem; border-radius: 14px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; gap: 0.3rem;">
-                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 0.95rem;">qr_code_scanner</span> ${escapeHtml(r.id_item || '-')}
-                        </span>
-                        
-                        <div role="img" aria-label="${r.isPending ? 'En attente de synchronisation' : 'Synchronisé'}" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; ${r.isPending ? 'background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2);' : 'background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2);'}" title="${r.isPending ? 'En attente de synchronisation' : 'Synchronisé'}">
-                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem;">${r.isPending ? 'cloud_upload' : 'cloud_done'}</span>
-                        </div>
-                        ${r.uuid ? `
-                        <button class="icon-btn edit-btn" data-uuid="${escapeHtml(r.uuid)}" style="width: 28px; height: 28px; border-radius: 50%; background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); color: var(--primary); padding: 0; display: flex; align-items: center; justify-content: center;" title="Modifier" aria-label="Modifier cet enregistrement">
-                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem;">edit</span>
-                        </button>
-                        <button class="icon-btn delete-btn" data-uuid="${escapeHtml(r.uuid)}" style="width: 28px; height: 28px; border-radius: 50%; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: var(--error); padding: 0; display: flex; align-items: center; justify-content: center;" title="Supprimer" aria-label="Supprimer cet enregistrement">
-                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem;">delete</span>
-                        </button>
-                        ` : ''}
-                    </div>
-                </div>
-                
-                <div class="pro-card-body">
-                    <div class="pro-meta-grid">
-                        <div class="pro-meta-item">
-                            <span aria-hidden="true" class="material-symbols-rounded">domain</span>
-                            <div>
-                                <span class="meta-label">Étage</span>
-                                <span class="meta-value">${r.etage !== undefined && r.etage !== null && r.etage !== "" ? escapeHtml(r.etage) : '-'}</span>
-                            </div>
-                        </div>
-                        <div class="pro-meta-item">
-                            <span aria-hidden="true" class="material-symbols-rounded">tag</span>
-                            <div>
-                                <span class="meta-label">Num. Tâche</span>
-                                <span class="meta-value">${escapeHtml(detailsVal)}</span>
-                            </div>
-                        </div>
-                        <div class="pro-meta-item">
-                            <span aria-hidden="true" class="material-symbols-rounded">local_offer</span>
-                            <div>
-                                <span class="meta-label">Catégorie</span>
-                                <span class="meta-value">${escapeHtml(r.categorie || '-')}</span>
-                            </div>
-                        </div>
-                        <div class="pro-meta-item">
-                            <span aria-hidden="true" class="material-symbols-rounded">calendar_today</span>
-                            <div>
-                                <span class="meta-label">Date</span>
-                                <span class="meta-value">${escapeHtml(dateStr)}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                ${r.note ? `
-                <div class="pro-card-footer">
-                    <div class="pro-note">
-                        <p>${escapeHtml(r.note)}</p>
-                    </div>
-                </div>` : ''}
-            </div>
-        `;
-    }).join('') + (remainingCount > 0 ? `
+    elements.historyContainer.innerHTML = items.slice(0, historyVisibleCount).map(item =>
+        item.type === 'group' ? historyGroupHtml(item, searchVal !== '') : historyRowHtml(item.record, false)
+    ).join('') + (remainingCount > 0 ? `
         <button type="button" id="history-show-more" class="btn-secondary" style="width: 100%;">
             <span aria-hidden="true" class="material-symbols-rounded">expand_more</span> Afficher plus (${remainingCount} restants)
         </button>

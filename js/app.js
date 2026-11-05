@@ -199,20 +199,24 @@ function setupEventListeners() {
     }
 
     if (ui.elements.filterHistoryMonth) {
-        ui.elements.filterHistoryMonth.addEventListener('change', ui.renderHistory);
-        ui.elements.filterHistoryEtage.addEventListener('change', ui.renderHistory);
-        if (ui.elements.filterHistoryLocataire) ui.elements.filterHistoryLocataire.addEventListener('change', ui.renderHistory);
-        ui.elements.filterHistoryTache.addEventListener('change', ui.renderHistory);
-        if (ui.elements.filterHistoryCategorie) ui.elements.filterHistoryCategorie.addEventListener('change', ui.renderHistory);
-        ui.elements.clearHistoryFiltersBtn.addEventListener('click', () => {
-            ui.elements.filterHistoryMonth.value = 'all';
-            ui.elements.filterHistoryEtage.value = 'all';
-            if (ui.elements.filterHistoryLocataire) ui.elements.filterHistoryLocataire.value = 'all';
-            ui.elements.filterHistoryTache.value = 'all';
-            if (ui.elements.filterHistoryCategorie) ui.elements.filterHistoryCategorie.value = 'all';
-            if (ui.elements.searchHistory) ui.elements.searchHistory.value = '';
-            ui.renderHistory();
+        [
+            ui.elements.filterHistoryMonth,
+            ui.elements.filterHistoryEtage,
+            ui.elements.filterHistoryLocataire,
+            ui.elements.filterHistoryTache,
+            ui.elements.filterHistoryCategorie
+        ].forEach(control => {
+            if (control) control.addEventListener('change', charts.onHistoryFiltersChange);
         });
+        if (ui.elements.clearHistoryFiltersBtn) {
+            ui.elements.clearHistoryFiltersBtn.addEventListener('click', charts.resetHistoryFilters);
+        }
+        if (ui.elements.historyActiveFilters) {
+            ui.elements.historyActiveFilters.addEventListener('click', (event) => {
+                if (event.target.closest('[data-clear-history-filters]')) charts.resetHistoryFilters();
+            });
+        }
+        ui.initHistoryControls();
     }
 
     if (ui.elements.tacheSelect) {
