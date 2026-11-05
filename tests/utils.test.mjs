@@ -327,10 +327,20 @@ test('uniqueDocsByMonth cuenta cada bon y cada tournée una sola vez por mes', (
     assert.deepEqual(result.tournee, [1, 0, 1]);
     assert.equal(result.totalBon, 2);
     assert.equal(result.totalTournee, 2);
+    assert.equal(result.withoutNumber, 1);
+});
+
+test('uniqueDocsByMonth usa otra columna de número si la propia está vacía', () => {
+    const result = uniqueDocsByMonth([
+        { fecha: '2026-08-03', tache: 'Bon de travail', num_bon: '', num_tache: '77', quantite: 1 },
+        { fecha: '2026-08-04', tache: 'Tournée', num_tache: '', num_bon: '12', quantite: 1 }
+    ]);
+    assert.deepEqual(result.bon, [1]);
+    assert.deepEqual(result.tournee, [1]);
 });
 
 test('uniqueDocsByMonth sin bons ni tournées devuelve todo vacío', () => {
     assert.deepEqual(uniqueDocsByMonth([{ fecha: '2026-08-03', tache: 'Remplacement', quantite: 1 }]), {
-        months: [], bon: [], tournee: [], totalBon: 0, totalTournee: 0
+        months: [], bon: [], tournee: [], totalBon: 0, totalTournee: 0, withoutNumber: 0
     });
 });

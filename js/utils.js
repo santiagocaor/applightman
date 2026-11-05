@@ -136,23 +136,29 @@ export function etageKey(record) {
 
 // Bon de travail y tournées distintos por mes. Cada bon o tournée genera varias filas (una por
 // material), así que se cuenta cada número una sola vez dentro del mes. Las filas sin número no se pueden
-// distinguir y no cuentan. Devuelve los meses seguidos, con 0 donde no hubo ninguno.
+// distinguir y no cuentan (se devuelven en withoutNumber). Devuelve los meses seguidos, con 0 donde no hubo ninguno.
 export function uniqueDocsByMonth(records) {
     const seen = { bon: {}, tournee: {} };
+    let withoutNumber = 0;
     records.forEach(record => {
         const task = String(record.tache ?? '').trim().toLowerCase();
         let kind = null;
         let number = '';
         if (task.includes('bon') || task.includes('travail') || task.includes('trabajo')) {
             kind = 'bon';
-            number = record.num_bon;
+            // Algunas hojas antiguas guardan el número en otra columna; se usa la primera que tenga valor
+            number = record.num_bon || record.num_tache || record.num_soumission;
         } else if (task.includes('tourn') || task.includes('ronde')) {
             kind = 'tournee';
-            number = record.num_tache;
+            number = record.num_tache || record.num_bon || record.num_soumission;
         }
         const month = recordMonthKey(record);
         const id = String(number ?? '').trim().toLowerCase();
-        if (!kind || !month || !id) return;
+        if (!kind || !month) return;
+        if (!id) {
+            withoutNumber += 1;
+            return;
+        }
         seen[kind][month] = seen[kind][month] || new Set();
         seen[kind][month].add(id);
     });
@@ -163,7 +169,7 @@ export function uniqueDocsByMonth(records) {
     const bon = countsFor('bon');
     const tournee = countsFor('tournee');
     const sum = (values) => values.reduce((total, value) => total + value, 0);
-    return { months, bon, tournee, totalBon: sum(bon), totalTournee: sum(tournee) };
+    return { months, bon, tournee, totalBon: sum(bon), totalTournee: sum(tournee), withoutNumber };
 }
 
 // Meses seguidos desde el primero hasta el último, incluidos los que no tienen registros

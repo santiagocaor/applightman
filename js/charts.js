@@ -1,5 +1,5 @@
 // js/charts.js
-import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, referenceKey, locataireKey, etageKey, uniqueDocsByMonth, monthlySeries } from './utils.js';
+import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, uniqueDocsByMonth, monthlySeries } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -264,8 +264,10 @@ export function updateDashboard() {
         if (ui.elements.filterHistoryCategorie) ui.elements.filterHistoryCategorie.value = 'all';
         if (ui.elements.searchHistory) ui.elements.searchHistory.value = '';
 
-        if ((canvasId === 'monthlyBulbsChart' || canvasId === 'taskTypeEvolutionChart') && ui.elements.filterHistoryMonth) {
+        if (canvasId === 'monthlyBulbsChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = sortedMonths[index] || 'all';
+        } else if (canvasId === 'taskTypeEvolutionChart' && ui.elements.filterHistoryMonth) {
+            ui.elements.filterHistoryMonth.value = taskTypeEvolution.months[index] || 'all';
         } else if (canvasId === 'categoryEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = categoryEvolution.months[index] || 'all';
         } else if (canvasId === 'docsEvolutionChart' && ui.elements.filterHistoryMonth) {
@@ -439,86 +441,44 @@ export function updateDashboard() {
         }
     });
 
-    const monthlyTaskTypeData = {};
-    sortedMonths.forEach(m => monthlyTaskTypeData[m] = {});
-
-    dashboardRecords.forEach(r => {
-        const key = recordMonthKey(r);
-        if (key && r.tache && monthlyTaskTypeData[key]) {
-            monthlyTaskTypeData[key][r.tache] = (monthlyTaskTypeData[key][r.tache] || 0) + Number(r.quantite || 0);
-        }
-    });
-
-    const taskTypeEvolutionDatasets = taskTypeKeys.map((tache, index) => {
-        const color = taskTypePalette[index % taskTypePalette.length];
-        return {
-            label: tache,
-            data: sortedMonths.map(month => monthlyTaskTypeData[month][tache] || 0),
-            borderColor: color,
-            backgroundColor: color + '33', // 33 for some transparency in area fill
-            fill: true,
-            tension: 0.4 // Smooth lines
-        };
-    });
-
-    renderChart('taskTypeEvolutionChart', 'line', monthlyLabels, [], null, {
-        datasets: taskTypeEvolutionDatasets,
-        onClick: handleChartClick,
-        scales: {
-            y: { grace: '15%' }
-        },
-        layout: {
-            padding: { top: 20 }
-        },
-        plugins: {
-            legend: { display: true },
-            datalabels: {
-                display: 'auto',
-                align: 'top',
-                anchor: 'center',
-                color: textColor,
-                font: { weight: 'bold', family: 'Outfit', size: 11 },
-                formatter: (value) => value > 0 ? value : ''
-            }
-        }
+    // Évolution mensuelle par type de tâche: mêmes couleurs que le graphique de répartition
+    const taskTypeEvolution = monthlyByGroup(
+        dashboardRecords.filter(r => r.tache),
+        r => r.tache,
+        { fillGaps: true }
+    );
+    renderGroupEvolution('taskTypeEvolutionChart', taskTypeEvolution.months, taskTypeEvolution.groups, taskTypeEvolution.data, {
+        colorFor: (name) => taskTypePalette[Math.max(0, taskTypeKeys.indexOf(name)) % taskTypePalette.length],
+        textColor,
+        onClick: handleChartClick
     });
 
     // Bons de travail et tournées réalisés par mois: chaque numéro n'est compté qu'une fois
     const docsEvolution = uniqueDocsByMonth(dashboardRecords);
     const docsColors = isDarkMode ? ['#60a5fa', '#fbbf24'] : ['#2563eb', '#d97706'];
-    const docsDatasets = [
-        { label: `Bons de travail (total : ${docsEvolution.totalBon})`, data: docsEvolution.bon },
-        { label: `Tournées (total : ${docsEvolution.totalTournee})`, data: docsEvolution.tournee }
-    ].map((dataset, index) => ({
-        ...dataset,
-        borderColor: docsColors[index],
-        backgroundColor: docsColors[index] + '33',
-        fill: true,
-        cubicInterpolationMode: 'monotone',
-        tension: 0.4
-    }));
-    const docsLabels = docsEvolution.months.map(key => {
-        const [y, m] = key.split('-');
-        return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
-    });
-    renderChart('docsEvolutionChart', 'line', docsLabels, [], null, {
-        datasets: docsDatasets,
-        onClick: handleChartClick,
-        scales: {
-            y: { beginAtZero: true, grace: '15%', ticks: { precision: 0 } }
-        },
-        layout: { padding: { top: 20 } },
-        plugins: {
-            legend: { display: true },
-            datalabels: {
-                display: 'auto',
-                align: 'top',
-                anchor: 'center',
-                color: textColor,
-                font: { weight: 'bold', family: 'Outfit', size: 11 },
-                formatter: (value) => value > 0 ? value : ''
-            }
+    const bonLabel = `Bons de travail (total : ${docsEvolution.totalBon})`;
+    const tourneeLabel = `Tournées (total : ${docsEvolution.totalTournee})`;
+    const docsNote = document.getElementById('docs-chart-note');
+    if (docsNote) {
+        // Solo se muestra un aviso cuando hay algo que explicar (filas sin número o sin datos)
+        let extra = '';
+        if (docsEvolution.withoutNumber > 0) {
+            const count = docsEvolution.withoutNumber;
+            extra = ` ${count} ligne${count > 1 ? 's' : ''} de bon ou de tournée sans numéro ${count > 1 ? 'ne sont pas comptées' : "n'est pas comptée"}.`;
         }
+        if (docsEvolution.months.length === 0) {
+            extra += ' Aucun numéro de bon ou de tournée trouvé : vérifiez que le champ est rempli dans les enregistrements.';
+        }
+        docsNote.textContent = extra.trim();
+        docsNote.classList.toggle('hidden-field', extra === '');
+    }
+    renderGroupEvolution('docsEvolutionChart', docsEvolution.months, [bonLabel, tourneeLabel], {
+        [bonLabel]: docsEvolution.bon,
+        [tourneeLabel]: docsEvolution.tournee
+    }, {
+        colorFor: (_name, index) => docsColors[index],
+        textColor,
+        onClick: handleChartClick
     });
 
     // Évolution mensuelle par catégorie: une ligne par catégorie, les mois sans remplacement valent 0
