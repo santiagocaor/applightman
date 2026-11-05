@@ -134,29 +134,36 @@ export function etageKey(record) {
     return String(record.etage ?? '').trim();
 }
 
-// Cantidad por piso y mes para el mapa de calor. Los registros sin piso no cuentan;
-// los pisos van en orden natural (2, 10, 16) y los meses sin reemplazos aparecen en 0.
-export function etageMonthGrid(records) {
-    const { months, groups, data } = monthlyByGroup(
-        records.filter(record => etageKey(record)),
-        etageKey,
-        { fillGaps: true }
-    );
-    const etages = [...groups].sort(naturalCompare);
-    const totals = {};
-    let max = 0;
-    etages.forEach(etage => {
-        totals[etage] = data[etage].reduce((sum, value) => sum + value, 0);
-        max = Math.max(max, ...data[etage]);
+// Bon de travail y tournées distintos por mes. Cada bon o tournée genera varias filas (una por
+// material), así que se cuenta cada número una sola vez dentro del mes. Las filas sin número no se pueden
+// distinguir y no cuentan. Devuelve los meses seguidos, con 0 donde no hubo ninguno.
+export function uniqueDocsByMonth(records) {
+    const seen = { bon: {}, tournee: {} };
+    records.forEach(record => {
+        const task = String(record.tache ?? '').trim().toLowerCase();
+        let kind = null;
+        let number = '';
+        if (task.includes('bon') || task.includes('travail') || task.includes('trabajo')) {
+            kind = 'bon';
+            number = record.num_bon;
+        } else if (task.includes('tourn') || task.includes('ronde')) {
+            kind = 'tournee';
+            number = record.num_tache;
+        }
+        const month = recordMonthKey(record);
+        const id = String(number ?? '').trim().toLowerCase();
+        if (!kind || !month || !id) return;
+        seen[kind][month] = seen[kind][month] || new Set();
+        seen[kind][month].add(id);
     });
-    return { months, etages, data, totals, max };
-}
 
-// Intensidad de color de una celda: 0 si no hubo reemplazos, de 1 (poco) a 5 (el máximo)
-export function heatLevel(value, max) {
-    const qty = Number(value) || 0;
-    if (qty <= 0 || !(max > 0)) return 0;
-    return Math.min(5, Math.max(1, Math.ceil((qty / max) * 5)));
+    const keys = [...Object.keys(seen.bon), ...Object.keys(seen.tournee)].sort();
+    const months = keys.length > 0 ? monthRange(keys[0], keys[keys.length - 1]) : [];
+    const countsFor = (kind) => months.map(month => (seen[kind][month] ? seen[kind][month].size : 0));
+    const bon = countsFor('bon');
+    const tournee = countsFor('tournee');
+    const sum = (values) => values.reduce((total, value) => total + value, 0);
+    return { months, bon, tournee, totalBon: sum(bon), totalTournee: sum(tournee) };
 }
 
 // Meses seguidos desde el primero hasta el último, incluidos los que no tienen registros

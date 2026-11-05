@@ -6,8 +6,7 @@ import assert from 'node:assert/strict';
 import {
     escapeHtml,
     etageKey,
-    etageMonthGrid,
-    heatLevel,
+    uniqueDocsByMonth,
     isReceptionTask,
     localDateString,
     locataireKey,
@@ -312,29 +311,26 @@ test('monthlySeries por piso suma solo el piso elegido', () => {
     assert.deepEqual(series, { 3: [5, 0, 2] });
 });
 
-test('etageMonthGrid ordena los pisos de forma natural, rellena meses y omite registros sin piso', () => {
-    const { months, etages, data, totals, max } = etageMonthGrid([
-        { fecha: '2026-08-03', etage: '10', quantite: 4 },
-        { fecha: '2026-08-04', etage: ' 2 ', quantite: 1 },
-        { fecha: '2026-10-05', etage: '10', quantite: 6 },
-        { fecha: '2026-09-05', etage: '', quantite: 50 }
+test('uniqueDocsByMonth cuenta cada bon y cada tournée una sola vez por mes', () => {
+    const result = uniqueDocsByMonth([
+        { fecha: '2026-08-03', tache: 'Bon de travail', num_bon: '1001', quantite: 4 },
+        { fecha: '2026-08-03', tache: 'Bon de travail', num_bon: ' 1001 ', quantite: 2 },
+        { fecha: '2026-08-10', tache: 'Bon de travail', num_bon: '1002', quantite: 1 },
+        { fecha: '2026-08-11', tache: 'Tournée', num_tache: 'T5', quantite: 3 },
+        { fecha: '2026-08-11', tache: 'Tournée', num_tache: 't5', quantite: 1 },
+        { fecha: '2026-10-02', tache: 'Tournée', num_tache: 'T6', quantite: 1 },
+        { fecha: '2026-10-02', tache: 'Tournée', num_tache: '', quantite: 9 },
+        { fecha: '2026-10-03', tache: 'Soumission', num_soumission: 'S1', quantite: 9 }
     ]);
-    assert.deepEqual(months, ['2026-08', '2026-09', '2026-10']);
-    assert.deepEqual(etages, ['2', '10']);
-    assert.deepEqual(data, { 2: [1, 0, 0], 10: [4, 0, 6] });
-    assert.deepEqual(totals, { 2: 1, 10: 10 });
-    assert.equal(max, 6);
+    assert.deepEqual(result.months, ['2026-08', '2026-09', '2026-10']);
+    assert.deepEqual(result.bon, [2, 0, 0]);
+    assert.deepEqual(result.tournee, [1, 0, 1]);
+    assert.equal(result.totalBon, 2);
+    assert.equal(result.totalTournee, 2);
 });
 
-test('etageMonthGrid sin datos devuelve estructuras vacías', () => {
-    assert.deepEqual(etageMonthGrid([]), { months: [], etages: [], data: {}, totals: {}, max: 0 });
-});
-
-test('heatLevel reparte la intensidad de 0 a 5 respecto al máximo', () => {
-    assert.equal(heatLevel(0, 10), 0);
-    assert.equal(heatLevel(1, 10), 1);
-    assert.equal(heatLevel(5, 10), 3);
-    assert.equal(heatLevel(10, 10), 5);
-    assert.equal(heatLevel(3, 0), 0);
-    assert.equal(heatLevel('x', 10), 0);
+test('uniqueDocsByMonth sin bons ni tournées devuelve todo vacío', () => {
+    assert.deepEqual(uniqueDocsByMonth([{ fecha: '2026-08-03', tache: 'Remplacement', quantite: 1 }]), {
+        months: [], bon: [], tournee: [], totalBon: 0, totalTournee: 0
+    });
 });

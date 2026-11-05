@@ -1,5 +1,5 @@
 // js/charts.js
-import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, referenceKey, locataireKey, etageKey, etageMonthGrid, heatLevel, monthlySeries } from './utils.js';
+import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, referenceKey, locataireKey, etageKey, uniqueDocsByMonth, monthlySeries } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -268,6 +268,8 @@ export function updateDashboard() {
             ui.elements.filterHistoryMonth.value = sortedMonths[index] || 'all';
         } else if (canvasId === 'categoryEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = categoryEvolution.months[index] || 'all';
+        } else if (canvasId === 'docsEvolutionChart' && ui.elements.filterHistoryMonth) {
+            ui.elements.filterHistoryMonth.value = docsEvolution.months[index] || 'all';
         } else if (canvasId === 'topEtagesChart' && ui.elements.filterHistoryEtage) {
             ui.elements.filterHistoryEtage.value = label || 'all';
         } else if (canvasId === 'taskTypeChart' && ui.elements.filterHistoryTache) {
@@ -481,6 +483,44 @@ export function updateDashboard() {
         }
     });
 
+    // Bons de travail et tournées réalisés par mois: chaque numéro n'est compté qu'une fois
+    const docsEvolution = uniqueDocsByMonth(dashboardRecords);
+    const docsColors = isDarkMode ? ['#60a5fa', '#fbbf24'] : ['#2563eb', '#d97706'];
+    const docsDatasets = [
+        { label: `Bons de travail (total : ${docsEvolution.totalBon})`, data: docsEvolution.bon },
+        { label: `Tournées (total : ${docsEvolution.totalTournee})`, data: docsEvolution.tournee }
+    ].map((dataset, index) => ({
+        ...dataset,
+        borderColor: docsColors[index],
+        backgroundColor: docsColors[index] + '33',
+        fill: true,
+        cubicInterpolationMode: 'monotone',
+        tension: 0.4
+    }));
+    const docsLabels = docsEvolution.months.map(key => {
+        const [y, m] = key.split('-');
+        return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
+    });
+    renderChart('docsEvolutionChart', 'line', docsLabels, [], null, {
+        datasets: docsDatasets,
+        onClick: handleChartClick,
+        scales: {
+            y: { beginAtZero: true, grace: '15%', ticks: { precision: 0 } }
+        },
+        layout: { padding: { top: 20 } },
+        plugins: {
+            legend: { display: true },
+            datalabels: {
+                display: 'auto',
+                align: 'top',
+                anchor: 'center',
+                color: textColor,
+                font: { weight: 'bold', family: 'Outfit', size: 11 },
+                formatter: (value) => value > 0 ? value : ''
+            }
+        }
+    });
+
     // Évolution mensuelle par catégorie: une ligne par catégorie, les mois sans remplacement valent 0
     const categoryEvolution = monthlyByCategory(dashboardRecords, { fillGaps: true });
     renderGroupEvolution('categoryEvolutionChart', categoryEvolution.months, categoryEvolution.categories, categoryEvolution.data, {
@@ -491,7 +531,6 @@ export function updateDashboard() {
 
     renderLocataireEvolution(dashboardRecords);
     renderEtageEvolution(dashboardRecords);
-    renderEtageHeatmap(dashboardRecords);
     renderReferenceEvolution(dashboardRecords);
 
     const topProductsHeight = Math.max(250, sortedProducts.length * 48);
@@ -698,55 +737,6 @@ function renderReferenceEvolution(records) {
 
 function renderLocataireEvolution(records) {
     renderCompareEvolution(LOCATAIRE_COMPARE, records);
-}
-
-const HEATMAP_MONTH_NAMES = ['Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'];
-
-// Mapa de calor piso × mes: una tabla de colores, más oscura donde hubo más reemplazos
-function renderEtageHeatmap(records) {
-    const container = document.getElementById('etage-heatmap');
-    if (!container) return;
-    const { months, etages, data, totals, max } = etageMonthGrid(records);
-    if (etages.length === 0) {
-        container.innerHTML = '<p class="chart-note">Aucune donnée avec un étage pour la période choisie.</p>';
-        return;
-    }
-
-    const monthLabel = (key) => {
-        const [year, month] = key.split('-');
-        return `${HEATMAP_MONTH_NAMES[parseInt(month, 10) - 1]} ${year.slice(2)}`;
-    };
-    const head = months.map(key => `<th scope="col">${escapeHtml(monthLabel(key))}</th>`).join('');
-    const rows = etages.map(etage => {
-        const cells = months.map((key, i) => {
-            const value = data[etage][i];
-            const level = heatLevel(value, max);
-            if (level === 0) return '<td class="heat-0" aria-label="0">·</td>';
-            return `<td class="heat-${level}"><button type="button" class="heat-cell" data-etage="${escapeHtml(etage)}" data-month="${escapeHtml(key)}" aria-label="Étage ${escapeHtml(etage)}, ${escapeHtml(monthLabel(key))} : ${value} ampoules">${value}</button></td>`;
-        }).join('');
-        return `<tr><th scope="row">Étage ${escapeHtml(etage)}</th>${cells}<td class="heat-total">${totals[etage]}</td></tr>`;
-    }).join('');
-
-    container.innerHTML = `<div class="heatmap-scroll"><table class="heatmap-table">
-        <thead><tr><th scope="col">Étage</th>${head}<th scope="col">Total</th></tr></thead>
-        <tbody>${rows}</tbody></table></div>
-        <div class="heatmap-legend" aria-hidden="true"><span>Peu</span>
-        <span class="heat-1"></span><span class="heat-2"></span><span class="heat-3"></span><span class="heat-4"></span><span class="heat-5"></span>
-        <span>Beaucoup</span></div>`;
-
-    // Tocar una celda abre el historial de ese piso y ese mes
-    container.querySelectorAll('.heat-cell').forEach(button => {
-        button.addEventListener('click', () => {
-            ui.setActiveView('view-historique');
-            if (ui.elements.filterHistoryMonth) ui.elements.filterHistoryMonth.value = button.dataset.month;
-            if (ui.elements.filterHistoryEtage) ui.elements.filterHistoryEtage.value = button.dataset.etage;
-            if (ui.elements.filterHistoryLocataire) ui.elements.filterHistoryLocataire.value = 'all';
-            if (ui.elements.filterHistoryTache) ui.elements.filterHistoryTache.value = 'all';
-            if (ui.elements.filterHistoryCategorie) ui.elements.filterHistoryCategorie.value = 'all';
-            if (ui.elements.searchHistory) ui.elements.searchHistory.value = '';
-            ui.renderHistory();
-        });
-    });
 }
 
 function renderEtageEvolution(records) {

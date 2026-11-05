@@ -302,6 +302,14 @@
                     </div>
                 </div>
 
+                <div class="card chart-card full-width-card">
+                    <h3>Bons de travail et tournées par mois</h3>
+                    <div class="chart-container">
+                        <canvas id="docsEvolutionChart" role="img" aria-label="Graphique : nombre de bons de travail et de tournées réalisés chaque mois"></canvas>
+                    </div>
+                    <p class="chart-note">Chaque numéro de bon ou de tournée n'est compté qu'une fois par mois, même s'il a plusieurs lignes.</p>
+                </div>
+
                 <div class="card chart-card full-width-card chart-card-tall">
                     <h3>Évolution mensuelle par catégorie</h3>
                     <div class="chart-container">
@@ -335,12 +343,6 @@
                     <div class="chart-container">
                         <canvas id="etageEvolutionChart" role="img" aria-label="Graphique en lignes : évolution mensuelle des remplacements de l'étage choisi"></canvas>
                     </div>
-                </div>
-
-                <div class="card chart-card full-width-card">
-                    <h3>Carte de chaleur : étage × mois</h3>
-                    <div id="etage-heatmap" role="region" aria-label="Carte de chaleur des remplacements par étage et par mois"></div>
-                    <p class="chart-note">Plus la case est foncée, plus il y a eu de remplacements. Touchez une case pour voir le détail dans l'historique.</p>
                 </div>
 
                 <div class="card chart-card full-width-card chart-card-tall">
