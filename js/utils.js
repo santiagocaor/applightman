@@ -328,48 +328,6 @@ export function recordMonths(records) {
     return [...months].sort().reverse();
 }
 
-// Reincidencias: la misma referencia vuelve a cambiarse en el mismo piso dentro de maxDays de la visita
-// anterior. Una visita es una fecha distinta, así que varias filas del mismo día no cuentan como repetición.
-export function recurrences(records, maxDays = 90) {
-    const groups = new Map();
-    records.forEach(record => {
-        const etage = etageKey(record);
-        const raw = record.date || record.fecha;
-        if (!etage || !raw) return;
-        const date = parseRecordDate(raw);
-        if (isNaN(date)) return;
-        const reference = referenceKey(record);
-        const key = `${etage}|${reference}`;
-        const entry = groups.get(key) || { etage, reference, label: referenceLabel(record), days: new Set(), quantity: 0 };
-        entry.days.add(localDateString(date));
-        entry.quantity += Number(record.quantite || 0);
-        groups.set(key, entry);
-    });
-
-    const result = [];
-    groups.forEach(entry => {
-        const days = [...entry.days].sort();
-        let repeats = 0;
-        for (let i = 1; i < days.length; i += 1) {
-            const gap = Math.round((parseRecordDate(days[i]) - parseRecordDate(days[i - 1])) / 86400000);
-            if (gap <= maxDays) repeats += 1;
-        }
-        if (repeats > 0) {
-            result.push({
-                etage: entry.etage,
-                reference: entry.reference,
-                label: entry.label,
-                visits: days.length,
-                repeats,
-                last: days[days.length - 1],
-                quantity: entry.quantity
-            });
-        }
-    });
-    return result.sort((a, b) =>
-        b.repeats - a.repeats || b.visits - a.visits || naturalCompare(a.etage, b.etage) || a.label.localeCompare(b.label, 'fr'));
-}
-
 function rankBy(records, getName) {
     const totals = {};
     records.forEach(record => {

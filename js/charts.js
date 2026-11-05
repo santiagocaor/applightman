@@ -1,5 +1,5 @@
 // js/charts.js
-import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, uniqueDocsByMonth, recurrences, recordMonths, monthlyReport, monthlySeries } from './utils.js';
+import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, uniqueDocsByMonth, recordMonths, monthlyReport, monthlySeries } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -7,7 +7,6 @@ let charts = {};
 let statsTableSearchQuery = '';
 let isStatsTableCollapsed = true;
 let lastSelectedEtage = null;
-let recurrenceTop = [];
 
 // Filtros de Statistiques: nombre del parámetro de store.filterRecords, control y texto del resumen
 const STATS_FILTERS = [
@@ -315,10 +314,6 @@ export function updateDashboard() {
             ui.elements.filterHistoryMonth.value = taskTypeEvolution.months[index] || 'all';
         } else if (canvasId === 'categoryEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = categoryEvolution.months[index] || 'all';
-        } else if (canvasId === 'recurrenceChart') {
-            const entry = recurrenceTop[index];
-            if (entry && ui.elements.filterHistoryEtage) ui.elements.filterHistoryEtage.value = entry.etage;
-            if (entry && ui.elements.searchHistory) ui.elements.searchHistory.value = entry.label;
         } else if (canvasId === 'docsEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = docsEvolution.months[index] || 'all';
         } else if (canvasId === 'topEtagesChart' && ui.elements.filterHistoryEtage) {
@@ -542,7 +537,6 @@ export function updateDashboard() {
     renderLocataireEvolution(dashboardRecords);
     renderEtageEvolution(dashboardRecords);
     renderReferenceEvolution(dashboardRecords);
-    renderRecurrences(dashboardRecords, { isDarkMode, textColor, onClick: handleChartClick });
     populateReportMonths();
 
     const topProductsHeight = Math.max(250, sortedProducts.length * 48);
@@ -635,42 +629,6 @@ function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textCo
             }
         }
     });
-}
-
-// Artículos que vuelven a cambiarse en el mismo piso poco después: posible falla de balastro o luminaria
-function renderRecurrences(records, { isDarkMode, textColor, onClick }) {
-    const canvas = document.getElementById('recurrenceChart');
-    if (!canvas) return;
-    const list = recurrences(records);
-    recurrenceTop = list.slice(0, 8);
-
-    const card = canvas.closest('.chart-card');
-    if (card) card.style.height = `${Math.max(280, recurrenceTop.length * 44 + 160)}px`;
-
-    const note = document.getElementById('recurrence-note');
-    if (note) {
-        note.textContent = list.length === 0
-            ? 'Aucune réincidence détectée sur la période choisie.'
-            : "Même article remplacé de nouveau au même étage moins de 90 jours après la visite précédente. Touchez une barre pour voir le détail.";
-    }
-
-    renderChart('recurrenceChart', 'bar', recurrenceTop.map(entry => `Étage ${entry.etage} · ${entry.label}`),
-        recurrenceTop.map(entry => entry.repeats), recurrenceTop.map(() => (isDarkMode ? '#f59e0b' : '#d97706')), {
-            datasetLabel: 'Réincidences',
-            indexAxis: 'y',
-            onClick,
-            scales: { x: { grace: '15%', beginAtZero: true, ticks: { precision: 0 } } },
-            plugins: {
-                legend: { display: false },
-                datalabels: {
-                    anchor: 'end',
-                    align: 'right',
-                    color: textColor,
-                    font: { weight: 'bold', family: 'Outfit', size: 12 },
-                    formatter: (val) => val > 0 ? val : ''
-                }
-            }
-        });
 }
 
 const REPORT_MONTH_NAMES = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
