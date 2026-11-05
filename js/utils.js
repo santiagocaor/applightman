@@ -134,6 +134,31 @@ export function etageKey(record) {
     return String(record.etage ?? '').trim();
 }
 
+// Cantidad por piso y mes para el mapa de calor. Los registros sin piso no cuentan;
+// los pisos van en orden natural (2, 10, 16) y los meses sin reemplazos aparecen en 0.
+export function etageMonthGrid(records) {
+    const { months, groups, data } = monthlyByGroup(
+        records.filter(record => etageKey(record)),
+        etageKey,
+        { fillGaps: true }
+    );
+    const etages = [...groups].sort(naturalCompare);
+    const totals = {};
+    let max = 0;
+    etages.forEach(etage => {
+        totals[etage] = data[etage].reduce((sum, value) => sum + value, 0);
+        max = Math.max(max, ...data[etage]);
+    });
+    return { months, etages, data, totals, max };
+}
+
+// Intensidad de color de una celda: 0 si no hubo reemplazos, de 1 (poco) a 5 (el máximo)
+export function heatLevel(value, max) {
+    const qty = Number(value) || 0;
+    if (qty <= 0 || !(max > 0)) return 0;
+    return Math.min(5, Math.max(1, Math.ceil((qty / max) * 5)));
+}
+
 // Meses seguidos desde el primero hasta el último, incluidos los que no tienen registros
 export function monthRange(firstKey, lastKey) {
     const months = [];

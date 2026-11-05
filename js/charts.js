@@ -1,5 +1,5 @@
 // js/charts.js
-import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, referenceKey, locataireKey, etageKey, monthlySeries } from './utils.js';
+import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, referenceKey, locataireKey, etageKey, etageMonthGrid, heatLevel, monthlySeries } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -491,6 +491,7 @@ export function updateDashboard() {
 
     renderLocataireEvolution(dashboardRecords);
     renderEtageEvolution(dashboardRecords);
+    renderEtageHeatmap(dashboardRecords);
     renderReferenceEvolution(dashboardRecords);
 
     const topProductsHeight = Math.max(250, sortedProducts.length * 48);
@@ -697,6 +698,55 @@ function renderReferenceEvolution(records) {
 
 function renderLocataireEvolution(records) {
     renderCompareEvolution(LOCATAIRE_COMPARE, records);
+}
+
+const HEATMAP_MONTH_NAMES = ['Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'];
+
+// Mapa de calor piso × mes: una tabla de colores, más oscura donde hubo más reemplazos
+function renderEtageHeatmap(records) {
+    const container = document.getElementById('etage-heatmap');
+    if (!container) return;
+    const { months, etages, data, totals, max } = etageMonthGrid(records);
+    if (etages.length === 0) {
+        container.innerHTML = '<p class="chart-note">Aucune donnée avec un étage pour la période choisie.</p>';
+        return;
+    }
+
+    const monthLabel = (key) => {
+        const [year, month] = key.split('-');
+        return `${HEATMAP_MONTH_NAMES[parseInt(month, 10) - 1]} ${year.slice(2)}`;
+    };
+    const head = months.map(key => `<th scope="col">${escapeHtml(monthLabel(key))}</th>`).join('');
+    const rows = etages.map(etage => {
+        const cells = months.map((key, i) => {
+            const value = data[etage][i];
+            const level = heatLevel(value, max);
+            if (level === 0) return '<td class="heat-0" aria-label="0">·</td>';
+            return `<td class="heat-${level}"><button type="button" class="heat-cell" data-etage="${escapeHtml(etage)}" data-month="${escapeHtml(key)}" aria-label="Étage ${escapeHtml(etage)}, ${escapeHtml(monthLabel(key))} : ${value} ampoules">${value}</button></td>`;
+        }).join('');
+        return `<tr><th scope="row">Étage ${escapeHtml(etage)}</th>${cells}<td class="heat-total">${totals[etage]}</td></tr>`;
+    }).join('');
+
+    container.innerHTML = `<div class="heatmap-scroll"><table class="heatmap-table">
+        <thead><tr><th scope="col">Étage</th>${head}<th scope="col">Total</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+        <div class="heatmap-legend" aria-hidden="true"><span>Peu</span>
+        <span class="heat-1"></span><span class="heat-2"></span><span class="heat-3"></span><span class="heat-4"></span><span class="heat-5"></span>
+        <span>Beaucoup</span></div>`;
+
+    // Tocar una celda abre el historial de ese piso y ese mes
+    container.querySelectorAll('.heat-cell').forEach(button => {
+        button.addEventListener('click', () => {
+            ui.setActiveView('view-historique');
+            if (ui.elements.filterHistoryMonth) ui.elements.filterHistoryMonth.value = button.dataset.month;
+            if (ui.elements.filterHistoryEtage) ui.elements.filterHistoryEtage.value = button.dataset.etage;
+            if (ui.elements.filterHistoryLocataire) ui.elements.filterHistoryLocataire.value = 'all';
+            if (ui.elements.filterHistoryTache) ui.elements.filterHistoryTache.value = 'all';
+            if (ui.elements.filterHistoryCategorie) ui.elements.filterHistoryCategorie.value = 'all';
+            if (ui.elements.searchHistory) ui.elements.searchHistory.value = '';
+            ui.renderHistory();
+        });
+    });
 }
 
 function renderEtageEvolution(records) {
