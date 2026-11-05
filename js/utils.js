@@ -107,6 +107,47 @@ export function monthlyByCategory(records) {
     return { months, categories, data };
 }
 
+// Identifica la referencia de un registro: su ID y, si no lo tiene, su descripción
+export function referenceKey(record) {
+    return String(record.id_item ?? '').trim() || String(record.description ?? '').trim() || 'Inconnu';
+}
+
+// Meses seguidos desde el primero hasta el último, incluidos los que no tienen registros
+export function monthRange(firstKey, lastKey) {
+    const months = [];
+    for (let index = monthIndex(firstKey); index <= monthIndex(lastKey); index += 1) {
+        months.push(`${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`);
+    }
+    return months;
+}
+
+// Cantidad por mes de las referencias elegidas. El eje cubre todo el período de los registros,
+// con los meses seguidos y en 0 donde la referencia no tuvo reemplazos.
+export function monthlySeries(records, selectedKeys) {
+    const wanted = new Set(selectedKeys);
+    const totals = {};
+    let first = null;
+    let last = null;
+    records.forEach(record => {
+        const month = recordMonthKey(record);
+        if (!month) return;
+        if (first === null || month < first) first = month;
+        if (last === null || month > last) last = month;
+
+        const key = referenceKey(record);
+        if (!wanted.has(key)) return;
+        totals[key] = totals[key] || {};
+        totals[key][month] = (totals[key][month] || 0) + Number(record.quantite || 0);
+    });
+
+    const months = first === null ? [] : monthRange(first, last);
+    const series = {};
+    selectedKeys.forEach(key => {
+        series[key] = months.map(month => (totals[key] && totals[key][month]) || 0);
+    });
+    return { months, series };
+}
+
 // Las recepciones de material son entradas de stock, no reemplazos: no cuentan como consumo
 export function isReceptionTask(task) {
     return /r[eé]ception/i.test(String(task ?? ''));

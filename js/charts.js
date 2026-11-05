@@ -1,5 +1,5 @@
 // js/charts.js
-import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory } from './utils.js';
+import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, referenceKey, monthlySeries } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -606,6 +606,8 @@ export function updateDashboard() {
         }
     });
 
+    renderReferenceEvolution(dashboardRecords);
+
     const topProductsHeight = Math.max(250, sortedProducts.length * 48);
     const topProductsCard = document.getElementById('topProductsChart')?.closest('.chart-card');
     if (topProductsCard) topProductsCard.style.height = `${topProductsHeight + 80}px`;
@@ -650,6 +652,130 @@ export function updateDashboard() {
 
     renderStatsTable(dashboardRecords);
 }
+let referenceControlsBound = false;
+
+// Referencias presentes en los registros, ordenadas por nombre. Si dos comparten descripción, se distinguen por su ID.
+function referenceOptions(records) {
+    const byKey = new Map();
+    records.forEach(record => {
+        const key = referenceKey(record);
+        const entry = byKey.get(key);
+        if (entry) {
+            entry.total += Number(record.quantite || 0);
+            return;
+        }
+        const found = store.appOptions.opciones.find(opt => opt.id === key);
+        byKey.set(key, {
+            key,
+            label: (found && found.description) || record.description || key,
+            total: Number(record.quantite || 0)
+        });
+    });
+
+    const entries = [...byKey.values()];
+    const labelCounts = {};
+    entries.forEach(entry => { labelCounts[entry.label] = (labelCounts[entry.label] || 0) + 1; });
+    entries.forEach(entry => {
+        if (labelCounts[entry.label] > 1 && entry.key !== entry.label) entry.label = `${entry.label} — ${entry.key}`;
+    });
+    return entries.sort((x, y) => x.label.localeCompare(y.label, 'fr', { numeric: true, sensitivity: 'base' }));
+}
+
+function fillReferenceSelect(select, entries, selectedKey, emptyLabel) {
+    select.innerHTML = '';
+    if (emptyLabel) {
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = emptyLabel;
+        select.appendChild(empty);
+    }
+    entries.forEach(entry => {
+        const option = document.createElement('option');
+        option.value = entry.key;
+        option.textContent = entry.label;
+        select.appendChild(option);
+    });
+    select.value = selectedKey;
+    select.disabled = entries.length === 0;
+}
+
+// Gráfica de líneas: evolución mensual de una referencia y, si se elige, comparada con otra
+function renderReferenceEvolution(records) {
+    const selectA = document.getElementById('compare-ref-a');
+    const selectB = document.getElementById('compare-ref-b');
+    if (!selectA || !selectB) return;
+
+    if (!referenceControlsBound) {
+        referenceControlsBound = true;
+        const onChange = () => {
+            store.setCompareSelection(selectA.value, selectB.value);
+            renderReferenceEvolution(getFilteredRecords());
+        };
+        selectA.addEventListener('change', onChange);
+        selectB.addEventListener('change', onChange);
+    }
+
+    const entries = referenceOptions(records);
+    const keys = entries.map(entry => entry.key);
+    const saved = store.getCompareSelection();
+
+    // Sin elección válida se muestra la referencia más utilizada
+    const mostUsed = [...entries].sort((x, y) => y.total - x.total)[0];
+    const a = keys.includes(saved.a) ? saved.a : (mostUsed ? mostUsed.key : '');
+    const b = keys.includes(saved.b) && saved.b !== a ? saved.b : '';
+
+    fillReferenceSelect(selectA, entries, a, null);
+    fillReferenceSelect(selectB, entries.filter(entry => entry.key !== a), b, '— Aucune —');
+
+    const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = isDarkMode ? '#94a3b8' : '#475569';
+    const lineColors = isDarkMode ? ['#60a5fa', '#fbbf24'] : ['#2563eb', '#d97706'];
+
+    const selected = [a, b].filter(Boolean);
+    const { months, series } = monthlySeries(records, selected);
+    const labelOf = (key) => (entries.find(entry => entry.key === key) || { label: key }).label;
+    const monthNamesShort = ["Janv", "Févr", "Mars", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"];
+    const labels = months.map(key => {
+        const [y, m] = key.split('-');
+        return `${monthNamesShort[parseInt(m, 10) - 1]} ${y}`;
+    });
+
+    const datasets = selected.map((key, index) => ({
+        label: labelOf(key),
+        data: series[key],
+        borderColor: lineColors[index],
+        backgroundColor: lineColors[index],
+        fill: false,
+        // Monótona: la curva nunca se sale de los valores reales (p. ej. por debajo de 0)
+        cubicInterpolationMode: 'monotone',
+        tension: 0.3,
+        borderWidth: 3,
+        pointRadius: 4,
+        pointHoverRadius: 6
+    }));
+
+    renderChart('referenceEvolutionChart', 'line', labels, [], null, {
+        datasets,
+        // Al pasar sobre un mes se ven las dos líneas a la vez
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+            y: { beginAtZero: true, grace: '15%' }
+        },
+        layout: { padding: { top: 20 } },
+        plugins: {
+            legend: { display: true },
+            datalabels: {
+                display: 'auto',
+                anchor: 'end',
+                align: 'top',
+                color: (context) => context.dataset.borderColor || textColor,
+                font: { weight: 'bold', family: 'Outfit', size: 11 },
+                formatter: (value) => value > 0 ? value : ''
+            }
+        }
+    });
+}
+
 function renderChart(canvasId, type, labels, data, colors, customOptions = {}) {
     const canvas = document.getElementById(canvasId);
     // Sin conexión Chart.js puede no estar disponible: el resto de la app debe seguir funcionando

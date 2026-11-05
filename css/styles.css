@@ -1477,3 +1477,20 @@ body {
     line-height: 1.4;
     color: var(--text-secondary);
 }
+
+/* --- Comparaison de références --- */
+.compare-card {
+    min-height: 460px;
+}
+
+/* El gráfico conserva una altura útil aunque los selectores ocupen varias líneas */
+.compare-card .chart-container {
+    min-height: 300px;
+}
+
+.compare-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}

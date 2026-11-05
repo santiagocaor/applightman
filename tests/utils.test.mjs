@@ -8,11 +8,14 @@ import {
     isReceptionTask,
     localDateString,
     monthlyAverage,
+    monthRange,
     monthlyByCategory,
+    monthlySeries,
     naturalCompare,
     parsePrice,
     parseRecordDate,
     recordMonthKey,
+    referenceKey,
     weekdayTotals
 } from '../js/utils.js';
 
@@ -175,4 +178,53 @@ test('monthlyByCategory ignora registros sin fecha válida y no falla sin datos'
     assert.deepEqual(monthlyByCategory([{ categorie: 'A', quantite: 5 }, { fecha: 'no', categorie: 'A', quantite: 1 }]),
         { months: [], categories: [], data: {} });
     assert.deepEqual(monthlyByCategory([]), { months: [], categories: [], data: {} });
+});
+
+test('referenceKey usa el ID y, si no hay, la descripción', () => {
+    assert.equal(referenceKey({ id_item: ' FL-12 ', description: 'F32T8' }), 'FL-12');
+    assert.equal(referenceKey({ id_item: '', description: 'F32T8/930' }), 'F32T8/930');
+    assert.equal(referenceKey({ id_item: 801014 }), '801014');
+    assert.equal(referenceKey({}), 'Inconnu');
+});
+
+test('monthRange incluye los meses intermedios y cruza el cambio de año', () => {
+    assert.deepEqual(monthRange('2026-11', '2027-02'), ['2026-11', '2026-12', '2027-01', '2027-02']);
+    assert.deepEqual(monthRange('2026-08', '2026-08'), ['2026-08']);
+});
+
+test('monthlySeries devuelve una línea por referencia con los meses vacíos en 0', () => {
+    const { months, series } = monthlySeries([
+        { fecha: '2026-07-06', id_item: 'A', quantite: 4 },
+        { fecha: '2026-07-20', id_item: 'A', quantite: 2 },
+        { fecha: '2026-07-21', id_item: 'B', quantite: 1 },
+        { fecha: '2026-09-08', id_item: 'B', quantite: 7 },
+        { fecha: '2026-09-09', id_item: 'C', quantite: 50 }
+    ], ['A', 'B']);
+    assert.deepEqual(months, ['2026-07', '2026-08', '2026-09']);
+    assert.deepEqual(series, { A: [6, 0, 0], B: [1, 0, 7] });
+});
+
+test('monthlySeries cubre todo el período aunque la referencia solo aparezca un mes', () => {
+    const { months, series } = monthlySeries([
+        { fecha: '2026-01-10', id_item: 'X', quantite: 9 },
+        { fecha: '2026-04-10', id_item: 'A', quantite: 3 }
+    ], ['A']);
+    assert.deepEqual(months, ['2026-01', '2026-02', '2026-03', '2026-04']);
+    assert.deepEqual(series.A, [0, 0, 0, 3]);
+});
+
+test('monthlySeries usa meses locales y distingue referencias por ID', () => {
+    // 2026-08-01 a las 04:00Z es 1 de agosto a medianoche en Montreal, no julio
+    const { months, series } = monthlySeries([
+        { date: '2026-08-01T04:00:00.000Z', id_item: 'A', description: 'Misma descripción', quantite: 5 },
+        { date: '2026-08-02T04:00:00.000Z', id_item: 'B', description: 'Misma descripción', quantite: 8 }
+    ], ['A', 'B']);
+    assert.deepEqual(months, ['2026-08']);
+    assert.deepEqual(series, { A: [5], B: [8] });
+});
+
+test('monthlySeries ignora registros sin fecha válida y no falla sin datos', () => {
+    assert.deepEqual(monthlySeries([{ id_item: 'A', quantite: 5 }, { fecha: 'no', id_item: 'A', quantite: 1 }], ['A']),
+        { months: [], series: { A: [] } });
+    assert.deepEqual(monthlySeries([], []), { months: [], series: {} });
 });

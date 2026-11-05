@@ -346,6 +346,25 @@
                     </div>
                 </div>
 
+                <div class="card chart-card full-width-card compare-card">
+                    <h3>Évolution par référence</h3>
+                    <div class="compare-controls">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="compare-ref-a"
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">show_chart</span> Référence</label>
+                            <select id="compare-ref-a" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;"></select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="compare-ref-b"
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">compare_arrows</span> Comparer avec</label>
+                            <select id="compare-ref-b" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;"></select>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="referenceEvolutionChart" role="img" aria-label="Graphique en lignes : évolution mensuelle d'une référence, avec comparaison possible avec une seconde"></canvas>
+                    </div>
+                </div>
+
                 <!-- BLOC 2: ANALYSE SPATIALE & IMPUTABILITÉ -->
                 <div class="stats-block-header">
                     <span class="block-badge">2</span>

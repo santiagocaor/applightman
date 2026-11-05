@@ -192,3 +192,21 @@ test('filterRecords filtra por mes local y por cada criterio', async () => {
     assert.deepEqual(ids({ description: 'F15T8 18" STD' }), ['a']);
     assert.deepEqual(ids({}), ['a', 'b']);
 });
+
+test('la comparación elegida se recuerda al reiniciar la app', async () => {
+    const first = await openStore(CLOUD);
+    assert.deepEqual(first.getCompareSelection(), { a: '', b: '' });
+    first.setCompareSelection('F32T8/930', 'F32T8/935');
+    instance += 1;
+    const second = await import(`../js/store.js?test=${instance}`);
+    assert.deepEqual(second.getCompareSelection(), { a: 'F32T8/930', b: 'F32T8/935' });
+});
+
+test('una comparación guardada dañada no rompe la app', async () => {
+    for (const raw of ['{dañado', 'null', '[1,2]', '"texto"', '{"a":5}']) {
+        const store = await openStore({ ...CLOUD, lightman_compare_refs: raw });
+        const selection = store.getCompareSelection();
+        assert.equal(typeof selection.a, 'string', raw);
+        assert.equal(typeof selection.b, 'string', raw);
+    }
+});
