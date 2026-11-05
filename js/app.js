@@ -180,22 +180,21 @@ function setupEventListeners() {
     });
 
     if (ui.elements.filterMonth) {
-        ui.elements.filterMonth.addEventListener('change', charts.updateDashboard);
-        ui.elements.filterEtage.addEventListener('change', charts.updateDashboard);
-        if (ui.elements.filterLocataire) ui.elements.filterLocataire.addEventListener('change', charts.updateDashboard);
-        ui.elements.filterTache.addEventListener('change', charts.updateDashboard);
-        if (ui.elements.filterCategorie) ui.elements.filterCategorie.addEventListener('change', charts.updateDashboard);
-        if (ui.elements.filterDescription) ui.elements.filterDescription.addEventListener('change', charts.updateDashboard);
-        
-        ui.elements.clearFiltersBtn.addEventListener('click', () => {
-            ui.elements.filterMonth.value = 'all';
-            ui.elements.filterEtage.value = 'all';
-            if (ui.elements.filterLocataire) ui.elements.filterLocataire.value = 'all';
-            ui.elements.filterTache.value = 'all';
-            if (ui.elements.filterCategorie) ui.elements.filterCategorie.value = 'all';
-            if (ui.elements.filterDescription) ui.elements.filterDescription.value = 'all';
-            charts.updateDashboard();
+        [
+            ui.elements.filterMonth,
+            ui.elements.filterEtage,
+            ui.elements.filterLocataire,
+            ui.elements.filterTache,
+            ui.elements.filterCategorie,
+            ui.elements.filterDescription
+        ].forEach(control => {
+            if (control) control.addEventListener('change', charts.onStatsFiltersChange);
         });
+
+        if (ui.elements.clearFiltersBtn) {
+            ui.elements.clearFiltersBtn.addEventListener('click', charts.resetStatsFilters);
+        }
+        charts.initStatsFilters();
         charts.initStatsTableListeners();
     }
 

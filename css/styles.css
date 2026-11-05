@@ -1595,3 +1595,76 @@ body {
         background: #fff;
     }
 }
+
+/* --- Filtres des statistiques --- */
+.filters-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.filters-toggle-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.filters-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.4rem;
+    height: 1.4rem;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    background: var(--primary);
+    color: var(--bg-card);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+/* Barra que se queda visible al bajar por las gráficas y recuerda qué filtros están puestos */
+.active-filters-bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.6rem;
+    margin: -0.25rem 0 1rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--primary);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    font-size: 0.8rem;
+    box-shadow: var(--shadow-md);
+}
+
+.active-filters-bar .filter-chip {
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    background: var(--input-bg);
+    font-weight: 600;
+}
+
+.active-filters-bar button {
+    margin-left: auto;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--primary);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}

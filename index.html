@@ -159,6 +159,66 @@
 
         <!-- VIEW: ESTADISTICAS -->
         <section id="view-stats" class="view">
+            <div class="card filters-card">
+                <button type="button" id="btn-toggle-filters" class="filters-toggle" aria-expanded="true" aria-controls="stats-filters-body">
+                    <span class="filters-toggle-title"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary);">filter_alt</span> Filtres <span id="filters-count" class="filters-count hidden-field">0</span></span>
+                    <span id="filters-chevron" aria-hidden="true" class="material-symbols-rounded">expand_less</span>
+                </button>
+                <div id="stats-filters-body" style="margin-top: 1rem;">
+                    <div
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="filter-month"
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">calendar_today</span> Période</label>
+                            <select id="filter-month" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
+                                <option value="all">Toutes les périodes</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="filter-etage"
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">domain</span> Étage / Niveau</label>
+                            <select id="filter-etage" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
+                                <option value="all">Tous les étages</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="filter-locataire"
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">apartment</span> Locataire / Zone</label>
+                            <select id="filter-locataire" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
+                                <option value="all">Tous les locataires</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="filter-tache"
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">checklist</span> Type d'intervention</label>
+                            <select id="filter-tache" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
+                                <option value="all">Toutes les interventions</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="filter-categorie"
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">local_offer</span> Catégorie de matériel</label>
+                            <select id="filter-categorie" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
+                                <option value="all">Toutes les catégories</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="filter-description"
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">lightbulb</span> Modèle / Spécification</label>
+                            <select id="filter-description" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
+                                <option value="all">Toutes les références</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="clear-filters-btn" class="btn-secondary"
+                        style="width: 100%; font-size: 0.85rem; padding: 0.4rem 0.75rem;">
+                        <span aria-hidden="true" class="material-symbols-rounded">restart_alt</span> Réinitialiser les filtres
+                    </button>
+                    <p class="chart-note">Les réceptions de matériel ne comptent pas dans les statistiques, sauf si vous les choisissez dans « Type d'intervention ». Le rapport mensuel n'utilise pas ces filtres.</p>
+                </div>
+            </div>
+            <div id="active-filters-bar" class="active-filters-bar hidden-field" role="status"></div>
+
             <div class="card" style="padding: 1.25rem;">
                 <h2 style="margin-bottom: 1.25rem;"><span aria-hidden="true" class="material-symbols-rounded">pie_chart</span> Statistiques</h2>
                 <p id="stats-data-notice" class="stats-data-notice hidden-field"></p>
@@ -225,60 +285,6 @@
                 </div>
             </div>
 
-            <div class="card">
-                <h3 style="margin-top: 0;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary);">filter_alt</span> Filtres</h3>
-                <div style="margin-bottom: 1.25rem;">
-                    <div
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="filter-month"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">calendar_today</span> Période</label>
-                            <select id="filter-month" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
-                                <option value="all">Toutes les périodes</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="filter-etage"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">domain</span> Étage / Niveau</label>
-                            <select id="filter-etage" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
-                                <option value="all">Tous les étages</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="filter-locataire"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">apartment</span> Locataire / Zone</label>
-                            <select id="filter-locataire" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
-                                <option value="all">Tous les locataires</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="filter-tache"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">checklist</span> Type d'intervention</label>
-                            <select id="filter-tache" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
-                                <option value="all">Toutes les interventions</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="filter-categorie"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">local_offer</span> Catégorie de matériel</label>
-                            <select id="filter-categorie" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
-                                <option value="all">Toutes les catégories</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="filter-description"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">lightbulb</span> Modèle / Spécification</label>
-                            <select id="filter-description" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
-                                <option value="all">Toutes les références</option>
-                            </select>
-                        </div>
-                    </div>
-                    <button id="clear-filters-btn" class="btn-secondary"
-                        style="width: 100%; font-size: 0.85rem; padding: 0.4rem 0.75rem;">
-                        <span aria-hidden="true" class="material-symbols-rounded">restart_alt</span> Réinitialiser les filtres
-                    </button>
-                </div>
-            </div>
 
             <div id="charts-container">
                 <!-- BLOC 1: VUE GLOBALE & TENDANCES TEMPORELLES -->

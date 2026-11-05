@@ -8,6 +8,7 @@ import {
     etageKey,
     uniqueDocsByMonth,
     recurrences,
+    monthInPeriod,
     recordMonths,
     monthlyReport,
     referenceLabel,
@@ -403,4 +404,22 @@ test('monthlyReport resume solo el mes pedido', () => {
     assert.deepEqual(report.references[0], { name: 'F32T8', total: 6 });
     assert.deepEqual(report.categories, [{ name: 'Tube', total: 6 }, { name: 'LED', total: 1 }]);
     assert.deepEqual(report.locataires, [{ name: 'Locataire A', total: 5 }, { name: 'Locataire B', total: 2 }]);
+});
+
+test('monthInPeriod acepta todo, rangos de últimos meses, el año en curso o un mes', () => {
+    const now = new Date(2026, 10, 5); // 5 de noviembre de 2026
+    assert.equal(monthInPeriod('2020-01', 'all', now), true);
+    assert.equal(monthInPeriod(null, 'all', now), true);
+    assert.equal(monthInPeriod(null, 'last-3', now), false);
+    // Últimos 3 meses: septiembre, octubre y noviembre
+    assert.equal(monthInPeriod('2026-09', 'last-3', now), true);
+    assert.equal(monthInPeriod('2026-11', 'last-3', now), true);
+    assert.equal(monthInPeriod('2026-08', 'last-3', now), false);
+    assert.equal(monthInPeriod('2026-12', 'last-3', now), false);
+    assert.equal(monthInPeriod('2025-12', 'last-12', now), true);
+    assert.equal(monthInPeriod('2025-11', 'last-12', now), false);
+    assert.equal(monthInPeriod('2026-01', 'year', now), true);
+    assert.equal(monthInPeriod('2025-12', 'year', now), false);
+    assert.equal(monthInPeriod('2026-10', '2026-10', now), true);
+    assert.equal(monthInPeriod('2026-09', '2026-10', now), false);
 });

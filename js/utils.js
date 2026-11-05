@@ -303,6 +303,21 @@ function monthIndex(key) {
     return year * 12 + (month - 1);
 }
 
+// Períodos de las estadísticas: 'all', 'last-N' (los N últimos meses, incluido el actual),
+// 'year' (el año en curso) o un mes concreto AAAA-MM
+export function monthInPeriod(monthKey, period, now = new Date()) {
+    if (!period || period === 'all') return true;
+    if (!monthKey) return false;
+    const last = /^last-(\d+)$/.exec(period);
+    if (last) {
+        const current = now.getFullYear() * 12 + now.getMonth();
+        const index = monthIndex(monthKey);
+        return index > current - Number(last[1]) && index <= current;
+    }
+    if (period === 'year') return monthKey.startsWith(`${now.getFullYear()}-`);
+    return monthKey === period;
+}
+
 // Promedio mensual sobre meses completos del calendario, incluidos los meses sin registros.
 // El mes en curso se deja fuera mientras existan meses anteriores, porque aún está a medias.
 export function monthlyAverage(monthlyTotals, now = new Date()) {

@@ -1,5 +1,5 @@
 // js/store.js
-import { recordMonthKey } from './utils.js';
+import { recordMonthKey, monthInPeriod } from './utils.js';
 
 // Lee JSON de localStorage sin romper la app si el contenido está dañado
 export function readJson(key, fallback) {
@@ -329,7 +329,7 @@ export function filterRecords(records, { month = 'all', etage = 'all', tache = '
     let filtered = [...records];
 
     if (month !== 'all') {
-        filtered = filtered.filter(r => recordMonthKey(r) === month);
+        filtered = filtered.filter(r => monthInPeriod(recordMonthKey(r), month));
     }
 
     if (etage !== 'all') {
