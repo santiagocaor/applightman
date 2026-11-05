@@ -39,6 +39,7 @@
             <h1>Lightman</h1>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button type="button" id="sync-status" class="sync-pill hidden-field" aria-live="polite"></button>
             <a href="#" class="nav-item icon-btn" data-target="view-config" title="Configuration" aria-label="Configuration"
                 style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; text-decoration: none;">
                 <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1.2rem;">settings</span>
@@ -138,6 +139,13 @@
                     <div class="form-group">
                         <label for="note"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">comment</span> Note (optionnel)</label>
                         <input type="text" id="note" name="note" placeholder="Ajouter une note ou précision">
+                    </div>
+
+                    <div class="form-group keep-visit">
+                        <label for="keep-visit" class="keep-visit-label">
+                            <input type="checkbox" id="keep-visit">
+                            <span>Enchaîner les lignes : garder la date, la tâche, le numéro, le locataire et l'étage après l'enregistrement</span>
+                        </label>
                     </div>
 
                     <div class="form-actions">
@@ -364,6 +372,14 @@
                     </div>
                 </div>
 
+                <div class="card chart-card full-width-card">
+                    <h3>Réincidences : même article, même étage</h3>
+                    <div class="chart-container">
+                        <canvas id="recurrenceChart" role="img" aria-label="Graphique : articles remplacés plusieurs fois au même étage en peu de temps"></canvas>
+                    </div>
+                    <p id="recurrence-note" class="chart-note"></p>
+                </div>
+
                 <!-- BLOC 2: ANALYSE SPATIALE & IMPUTABILITÉ -->
                 <div class="stats-block-header">
                     <span class="block-badge">2</span>
@@ -414,6 +430,22 @@
                 </div>
 
                 <!-- 4. Tabla Acordeón: Consumo Detallado por Description (Full Width) -->
+                <div class="card chart-card full-width-card report-card" style="grid-column: 1 / -1; min-height: auto; margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
+                    <h3>Rapport mensuel</h3>
+                    <div class="compare-controls" style="margin-bottom: 0;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="report-month"
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">calendar_month</span> Mois</label>
+                            <select id="report-month" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;"></select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0; align-self: end;">
+                            <button type="button" id="btn-print-report" class="btn-secondary" style="width: 100%; height: 36px; display: flex; align-items: center; justify-content: center; gap: 0.4rem;">
+                                <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1.1rem;">print</span> Imprimer / PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card chart-card stats-table-card full-width-card" style="grid-column: 1 / -1; min-height: auto; margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
                     <div id="stats-table-header" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; flex-wrap: wrap; gap: 0.75rem;">
                         <div>
@@ -665,6 +697,8 @@
     </div>
 
     <!-- Scripts -->
+    <div id="print-report" aria-hidden="true"></div>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.6.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script type="module" src="js/app.js"></script>

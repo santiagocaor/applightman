@@ -1,5 +1,5 @@
 // js/charts.js
-import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, uniqueDocsByMonth, monthlySeries } from './utils.js';
+import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, uniqueDocsByMonth, recurrences, recordMonths, monthlyReport, monthlySeries } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -7,6 +7,7 @@ let charts = {};
 let statsTableSearchQuery = '';
 let isStatsTableCollapsed = true;
 let lastSelectedEtage = null;
+let recurrenceTop = [];
 
 // [FIX M-7] Usa la función centralizada de filtrado de store.js en lugar de duplicar la lógica
 export function getFilteredRecords() {
@@ -270,6 +271,10 @@ export function updateDashboard() {
             ui.elements.filterHistoryMonth.value = taskTypeEvolution.months[index] || 'all';
         } else if (canvasId === 'categoryEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = categoryEvolution.months[index] || 'all';
+        } else if (canvasId === 'recurrenceChart') {
+            const entry = recurrenceTop[index];
+            if (entry && ui.elements.filterHistoryEtage) ui.elements.filterHistoryEtage.value = entry.etage;
+            if (entry && ui.elements.searchHistory) ui.elements.searchHistory.value = entry.label;
         } else if (canvasId === 'docsEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = docsEvolution.months[index] || 'all';
         } else if (canvasId === 'topEtagesChart' && ui.elements.filterHistoryEtage) {
@@ -492,6 +497,8 @@ export function updateDashboard() {
     renderLocataireEvolution(dashboardRecords);
     renderEtageEvolution(dashboardRecords);
     renderReferenceEvolution(dashboardRecords);
+    renderRecurrences(dashboardRecords, { isDarkMode, textColor, onClick: handleChartClick });
+    populateReportMonths();
 
     const topProductsHeight = Math.max(250, sortedProducts.length * 48);
     const topProductsCard = document.getElementById('topProductsChart')?.closest('.chart-card');
@@ -583,6 +590,105 @@ function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textCo
             }
         }
     });
+}
+
+// Artículos que vuelven a cambiarse en el mismo piso poco después: posible falla de balastro o luminaria
+function renderRecurrences(records, { isDarkMode, textColor, onClick }) {
+    const canvas = document.getElementById('recurrenceChart');
+    if (!canvas) return;
+    const list = recurrences(records);
+    recurrenceTop = list.slice(0, 8);
+
+    const card = canvas.closest('.chart-card');
+    if (card) card.style.height = `${Math.max(280, recurrenceTop.length * 44 + 160)}px`;
+
+    const note = document.getElementById('recurrence-note');
+    if (note) {
+        note.textContent = list.length === 0
+            ? 'Aucune réincidence détectée sur la période choisie.'
+            : "Même article remplacé de nouveau au même étage moins de 90 jours après la visite précédente. Touchez une barre pour voir le détail.";
+    }
+
+    renderChart('recurrenceChart', 'bar', recurrenceTop.map(entry => `Étage ${entry.etage} · ${entry.label}`),
+        recurrenceTop.map(entry => entry.repeats), recurrenceTop.map(() => (isDarkMode ? '#f59e0b' : '#d97706')), {
+            datasetLabel: 'Réincidences',
+            indexAxis: 'y',
+            onClick,
+            scales: { x: { grace: '15%', beginAtZero: true, ticks: { precision: 0 } } },
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'end',
+                    align: 'right',
+                    color: textColor,
+                    font: { weight: 'bold', family: 'Outfit', size: 12 },
+                    formatter: (val) => val > 0 ? val : ''
+                }
+            }
+        });
+}
+
+const REPORT_MONTH_NAMES = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+function reportMonthLabel(key) {
+    const [year, month] = key.split('-');
+    return `${REPORT_MONTH_NAMES[parseInt(month, 10) - 1]} ${year}`;
+}
+
+// El reporte usa todos los registros, sin los filtros de Statistiques (excepto la réception de material)
+function reportRecords() {
+    return store.getAllRecords().filter(record => !isReceptionTask(record.tache));
+}
+
+function populateReportMonths() {
+    const select = document.getElementById('report-month');
+    if (!select) return;
+    const months = recordMonths(reportRecords());
+    const previous = select.value;
+    select.innerHTML = months.map(key => `<option value="${escapeHtml(key)}">${escapeHtml(reportMonthLabel(key))}</option>`).join('');
+    select.value = months.includes(previous) ? previous : (months[0] || '');
+}
+
+function reportTable(title, rows, firstColumn, secondColumn = 'Ampoules') {
+    if (rows.length === 0) return '';
+    const body = rows.map(row => `<tr><td>${escapeHtml(row.name)}</td><td>${row.total}</td></tr>`).join('');
+    return `<h2>${escapeHtml(title)}</h2><table><thead><tr><th>${escapeHtml(firstColumn)}</th><th>${escapeHtml(secondColumn)}</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function buildReportHtml(report) {
+    const generated = new Date().toLocaleDateString('fr-CA');
+    const summary = `<table><tbody>
+        <tr><td>Ampoules remplacées</td><td>${report.total}</td></tr>
+        <tr><td>Bons de travail</td><td>${report.bons}</td></tr>
+        <tr><td>Tournées</td><td>${report.tournees}</td></tr>
+        <tr><td>Lignes enregistrées</td><td>${report.lines}</td></tr></tbody></table>`;
+    const etages = report.etages.slice(0, 5).map(item => ({ name: `Étage ${item.name}`, total: item.total }));
+    return `<h1>Rapport mensuel — ${escapeHtml(reportMonthLabel(report.month))}</h1>
+        ${report.lines === 0 ? '<p>Aucun enregistrement pour ce mois.</p>' : summary
+            + reportTable('Étages les plus actifs', etages, 'Étage')
+            + reportTable('Articles les plus remplacés', report.references.slice(0, 5), 'Article')
+            + reportTable('Par catégorie', report.categories, 'Catégorie')
+            + reportTable('Par locataire', report.locataires.slice(0, 5), 'Locataire')}
+        <p class="report-footer">Généré le ${escapeHtml(generated)} — Lightman</p>`;
+}
+
+export function printMonthlyReport() {
+    const select = document.getElementById('report-month');
+    const container = document.getElementById('print-report');
+    if (!select || !container || !select.value) {
+        ui.showToast("Aucun mois à imprimer.", "warning");
+        return;
+    }
+
+    container.innerHTML = buildReportHtml(monthlyReport(reportRecords(), select.value));
+    // La clase solo oculta la app al imprimir (regla @media print): en pantalla no cambia nada
+    const cleanup = () => {
+        document.body.classList.remove('printing-report');
+        window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    document.body.classList.add('printing-report');
+    window.print();
 }
 
 const boundCompareControls = new Set();

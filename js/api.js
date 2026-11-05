@@ -117,7 +117,7 @@ export async function saveRecordToCloud(record) {
         ui.showToast("Enregistrement réussi !", "success");
         store.addToHistory(record);
         store.setRecords([record, ...store.records]);
-        ui.resetFormAndRefresh();
+        ui.resetFormAndRefresh(ui.shouldKeepVisit());
         refreshViews();
     } catch (error) {
         console.error("Save Error:", error);
@@ -131,7 +131,7 @@ function addToOfflineQueue(record) {
     store.addToSyncQueue(record);
     ui.updateSyncBadge();
     store.addToHistory(record);
-    ui.resetFormAndRefresh();
+    ui.resetFormAndRefresh(ui.shouldKeepVisit());
     refreshViews();
 
     if (navigator.vibrate) navigator.vibrate([200, 100, 200]);

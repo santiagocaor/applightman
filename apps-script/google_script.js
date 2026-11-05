@@ -401,48 +401,7 @@ function buildDataResponse() {
     }
   }
 
-  // 4. Obtener Inventaire (desde hoja Opciones)
-  // Columnas de la hoja: Id | Description | Catégorie | Name | Prix | Moy./mois | Inv. Inicial | Consom. | Stock | Limite
-  let inventoryList = [];
-  const invSheet = ss.getSheetByName(SHEET_NAME_OPTIONS);
-  if (invSheet) {
-    const invData = invSheet.getDataRange().getValues();
-    if (invData.length > 1) {
-      const headers = invData[0].map(h => String(h).trim());
-
-      // Mapeo flexible de columnas (admite variaciones de nombre)
-      const idIdx = headers.findIndex(h => /^id$|^code$|^identifiant$/i.test(h));
-      const descIdx = headers.findIndex(h => /^description$/i.test(h));
-      const catIdx = headers.findIndex(h => /^cat[eé]gorie$/i.test(h));
-      const nameIdx = headers.findIndex(h => /^name$|^nom$/i.test(h));
-      const prixIdx = headers.findIndex(h => /^prix$|^price$/i.test(h));
-      const stockIdx = headers.findIndex(h => /^stock$/i.test(h));
-      const limiteIdx = headers.findIndex(h => /^limite$|^limit$/i.test(h));
-      const consumoIdx = headers.findIndex(h => /consom|consumo|d[eé]pense/i.test(h));
-      const promMesIdx = headers.findIndex(h => /moy\.\/mois|moy|prom|moyenne/i.test(h));
-
-      for (let i = 1; i < invData.length; i++) {
-        const row = invData[i];
-        const idVal = idIdx > -1 ? row[idIdx] : row[0]; // fallback a col 0
-        if (idVal !== undefined && String(idVal).trim() !== "") {
-          inventoryList.push({
-            id: String(idVal).trim(),
-            description: descIdx > -1 ? row[descIdx] : "",
-            categorie: catIdx > -1 ? row[catIdx] : "",
-            name: nameIdx > -1 ? row[nameIdx] : "",
-            prix: prixIdx > -1 ? row[prixIdx] : "",
-            stock: stockIdx > -1 ? row[stockIdx] : 0,
-            limite: limiteIdx > -1 ? row[limiteIdx] : "",
-            consumo: consumoIdx > -1 ? row[consumoIdx] : "",
-            promMes: promMesIdx > -1 ? row[promMesIdx] : "",
-            solde: "" // no hay columna Solde en Opciones
-          });
-        }
-      }
-    }
-  }
-
-  // 5. Obtener los registros más recientes
+  // 4. Obtener los registros más recientes
   const recordsSheet = ss.getSheetByName(SHEET_NAME_RECORDS);
   const lastRow = recordsSheet.getLastRow();
   const lastCol = recordsSheet.getLastColumn();
@@ -512,8 +471,7 @@ function buildDataResponse() {
     opciones: opcionesList,
     etage: etagesList,
     tache: tachesList,
-    locataire: locatairesList,
-    inventory: inventoryList
+    locataire: locatairesList
   };
 
   return createJsonResponse({ status: 'success', options: options, records: records, totalRecords: totalRecords });
@@ -556,40 +514,45 @@ function createJsonResponse(data) {
 }
 
 // ============================================================
-// FUNCIÓN DE DIAGNÓSTICO - Ejecutar desde el editor para probar
+// COPIA DE SEGURIDAD SEMANAL
 // ============================================================
-function testInventory() {
+// Ejecutar installWeeklyBackup UNA vez desde el editor: crea una copia de la hoja cada lunes en la
+// carpeta de Drive indicada. Solo se conservan las últimas copias; las más antiguas van a la papelera.
+const BACKUP_FOLDER_NAME = "Lightman - Copies de sécurité";
+const BACKUPS_TO_KEEP = 8;
+
+// De las copias existentes devuelve las que sobran, dejando las más recientes
+function backupsToTrash(items, keep) {
+  return items.slice().sort((a, b) => b.created - a.created).slice(Math.max(0, keep));
+}
+
+function getBackupFolder() {
+  const folders = DriveApp.getFoldersByName(BACKUP_FOLDER_NAME);
+  return folders.hasNext() ? folders.next() : DriveApp.createFolder(BACKUP_FOLDER_NAME);
+}
+
+function backupSpreadsheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const invSheet = ss.getSheetByName(SHEET_NAME_OPTIONS);
+  const folder = getBackupFolder();
+  const prefix = ss.getName() + " - copie ";
+  const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH-mm");
+  DriveApp.getFileById(ss.getId()).makeCopy(prefix + stamp, folder);
 
-  if (!invSheet) {
-    Logger.log("❌ ERROR: No se encontró la hoja '" + SHEET_NAME_OPTIONS + "'");
-    return;
+  // Solo se limpian las copias que esta función creó, nunca otros archivos de la carpeta
+  const copies = [];
+  const files = folder.getFiles();
+  while (files.hasNext()) {
+    const file = files.next();
+    if (file.getName().indexOf(prefix) === 0) {
+      copies.push({ file: file, created: file.getDateCreated().getTime() });
+    }
   }
+  backupsToTrash(copies, BACKUPS_TO_KEEP).forEach(item => item.file.setTrashed(true));
+}
 
-  const invData = invSheet.getDataRange().getValues();
-  Logger.log("✅ Hoja encontrada: " + SHEET_NAME_OPTIONS);
-  Logger.log("📊 Total de filas (incluyendo encabezado): " + invData.length);
-
-  if (invData.length === 0) {
-    Logger.log("❌ La hoja está completamente vacía");
-    return;
-  }
-
-  const headers = invData[0].map(h => String(h).trim());
-  Logger.log("📋 Encabezados detectados: " + JSON.stringify(headers));
-
-  const idIdx = headers.findIndex(h => /^id$|^code$|^identifiant$/i.test(h));
-  const stockIdx = headers.findIndex(h => /^stock$/i.test(h));
-  const consumoIdx = headers.findIndex(h => /consom|consumo|d[eé]pense/i.test(h));
-  const promMesIdx = headers.findIndex(h => /moy\.\/mois|moy|prom|moyenne/i.test(h));
-  const limiteIdx = headers.findIndex(h => /^limite$|^limit$/i.test(h));
-
-  Logger.log("🔎 idIdx=" + idIdx + " | stockIdx=" + stockIdx + " | consumoIdx=" + consumoIdx + " | promMesIdx=" + promMesIdx + " | limiteIdx=" + limiteIdx);
-  Logger.log("📦 Filas de datos (sin encabezado): " + (invData.length - 1));
-
-  if (invData.length > 1) {
-    Logger.log("🔍 Primera fila de datos: " + JSON.stringify(invData[1]));
-    if (invData.length > 2) Logger.log("🔍 Segunda fila de datos: " + JSON.stringify(invData[2]));
-  }
+function installWeeklyBackup() {
+  ScriptApp.getProjectTriggers()
+    .filter(trigger => trigger.getHandlerFunction() === 'backupSpreadsheet')
+    .forEach(trigger => ScriptApp.deleteTrigger(trigger));
+  ScriptApp.newTrigger('backupSpreadsheet').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(3).create();
 }

@@ -256,6 +256,15 @@ export function editRecordLocally(uuid, updatedRecord) {
 }
 
 // Última comparación elegida en cada gráfica de Stats ("refs", "locataires"): se conserva para no volver a buscarla
+// Si está activo, tras guardar se conservan los datos de la visita para anotar la línea siguiente
+export function getKeepVisit() {
+    return readJson('lightman_keep_visit', false) === true;
+}
+
+export function setKeepVisit(value) {
+    writeJson('lightman_keep_visit', Boolean(value));
+}
+
 const compareKey = (name) => `lightman_compare_${name}`;
 
 export function getCompareSelection(name = 'refs') {

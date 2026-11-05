@@ -224,3 +224,58 @@ test('con el token correcto se puede leer y escribir', () => {
     assert.equal(s.post({ action: 'deleteRecord', uuid: 'u1', token: 'secreto' }).status, 'success');
     assert.equal(s.sheets.Registros.rows.length, 1);
 });
+
+test('getData ya no envía el inventario que la app no usa', () => {
+    const s = setup([row('u1')]);
+    const result = s.get();
+    assert.equal(result.status, 'success');
+    assert.equal(result.options.inventory, undefined);
+    assert.equal(result.options.opciones.length, 1);
+});
+
+function backupContext(existing = []) {
+    const files = existing.map(([name, created]) => ({ name, created, trashed: false }));
+    const wrap = (file) => ({
+        getName: () => file.name,
+        getDateCreated: () => ({ getTime: () => file.created }),
+        setTrashed: (value) => { file.trashed = value; }
+    });
+    const folder = {
+        getFiles: () => {
+            let index = 0;
+            const visible = files.filter(file => !file.trashed);
+            return { hasNext: () => index < visible.length, next: () => wrap(visible[index++]) };
+        }
+    };
+    let clock = 1000;
+    const context = vm.createContext({
+        SpreadsheetApp: { getActiveSpreadsheet: () => ({ getName: () => 'Lightman', getId: () => 'sheet-id' }) },
+        DriveApp: {
+            getFoldersByName: () => ({ hasNext: () => true, next: () => folder }),
+            getFileById: () => ({
+                makeCopy: (name) => { files.push({ name, created: (clock += 1), trashed: false }); }
+            })
+        },
+        Utilities: { formatDate: () => '2026-11-09 03-00' },
+        Session: { getScriptTimeZone: () => 'America/Toronto' }
+    });
+    vm.runInContext(code, context);
+    return { files, run: () => context.backupSpreadsheet(), context };
+}
+
+test('backupsToTrash deja las copias más recientes y no falla con pocas', () => {
+    const { context } = backupContext();
+    const items = [{ created: 1 }, { created: 5 }, { created: 3 }];
+    assert.deepEqual(JSON.parse(JSON.stringify(context.backupsToTrash(items, 2))), [{ created: 1 }]);
+    assert.deepEqual(JSON.parse(JSON.stringify(context.backupsToTrash(items, 8))), []);
+});
+
+test('la copia semanal crea una copia nueva y manda a la papelera solo las más antiguas propias', () => {
+    const old = Array.from({ length: 8 }, (_, i) => [`Lightman - copie 2026-0${i + 1}`, i + 1]);
+    const { files, run } = backupContext([...old, ['Otro archivo.pdf', 0]]);
+    run();
+    const trashed = files.filter(file => file.trashed).map(file => file.name);
+    assert.deepEqual(trashed, ['Lightman - copie 2026-01']);
+    assert.ok(files.some(file => file.name === 'Lightman - copie 2026-11-09 03-00'));
+    assert.equal(files.find(file => file.name === 'Otro archivo.pdf').trashed, false);
+});

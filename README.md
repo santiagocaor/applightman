@@ -1,6 +1,6 @@
 # Lightman App
 
-Aplicación web instalable (PWA) para registrar los reemplazos de luminarias de un edificio, seguir el consumo y controlar el inventario. La interfaz está en francés y los datos viven en una hoja de Google Sheets.
+Aplicación web instalable (PWA) para registrar los reemplazos de luminarias de un edificio, y seguir el consumo con estadísticas. La interfaz está en francés y los datos viven en una hoja de Google Sheets.
 
 **App publicada:** <https://santiagocaor.github.io/applightman/>
 
@@ -12,7 +12,7 @@ Aplicación web instalable (PWA) para registrar los reemplazos de luminarias de 
 | Conexión con la hoja | `apps-script/google_script.js` | Aparte, en Google Apps Script (ver abajo) |
 | Datos | Google Sheets | Desde la app o directamente en la hoja |
 
-La app funciona sin conexión: guarda los registros en el dispositivo y los envía cuando vuelve a tener internet.
+La app funciona sin conexión: guarda los registros en el dispositivo y los envía cuando vuelve a tener internet. Un aviso en el encabezado indica cuando no hay conexión o quedan registros pendientes.
 
 ## Configurar un dispositivo
 
@@ -53,6 +53,16 @@ Así se mantiene la misma URL. Si creas una implementación nueva, la URL cambia
 4. Trae los archivos del proyecto real con `npm run script:pull`. Conserva `appsscript.json`, porque sin él `clasp` no puede subir el código, y borra la copia del código con otro nombre, como `Código.js`, para no subirlo duplicado.
 5. Sube el código con `npm run script:push`.
 6. Publica una versión nueva con `npm run script:deploy -- ID_DE_LA_IMPLEMENTACION`. Así se mantiene la misma URL.
+
+## Copia de seguridad semanal
+
+`apps-script/google_script.js` incluye una copia automática de la hoja. Se activa una sola vez:
+
+1. Actualiza Apps Script como se explica arriba.
+2. En el editor, elige la función `installWeeklyBackup` y pulsa **Ejecutar**. Google pedirá permiso para usar Drive.
+3. Cada lunes se crea una copia en la carpeta **Lightman - Copies de sécurité** de tu Drive. Se conservan las últimas 8; las anteriores van a la papelera, de donde se pueden recuperar durante 30 días.
+
+Para probarla de inmediato, ejecuta `backupSpreadsheet`.
 
 ## Desarrollo
 

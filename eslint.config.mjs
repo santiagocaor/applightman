@@ -26,15 +26,18 @@ export default [
             sourceType: 'script',
             globals: {
                 ContentService: 'readonly',
+                DriveApp: 'readonly',
                 LockService: 'readonly',
                 Logger: 'readonly',
                 PropertiesService: 'readonly',
+                ScriptApp: 'readonly',
+                Session: 'readonly',
                 SpreadsheetApp: 'readonly',
                 Utilities: 'readonly'
             }
         },
         rules: {
-            'no-unused-vars': ['error', { args: 'after-used', caughtErrors: 'none', varsIgnorePattern: '^(doGet|doPost|testInventory)$' }]
+            'no-unused-vars': ['error', { args: 'after-used', caughtErrors: 'none', varsIgnorePattern: '^(doGet|doPost|backupSpreadsheet|installWeeklyBackup)$' }]
         }
     },
     {

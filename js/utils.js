@@ -172,6 +172,91 @@ export function uniqueDocsByMonth(records) {
     return { months, bon, tournee, totalBon: sum(bon), totalTournee: sum(tournee), withoutNumber };
 }
 
+// Nombre legible de la referencia: la descripción, o su identificador si no la tiene
+export function referenceLabel(record) {
+    return String(record.description ?? '').trim() || referenceKey(record);
+}
+
+// Meses con registros, del más reciente al más antiguo
+export function recordMonths(records) {
+    const months = new Set();
+    records.forEach(record => {
+        const key = recordMonthKey(record);
+        if (key) months.add(key);
+    });
+    return [...months].sort().reverse();
+}
+
+// Reincidencias: la misma referencia vuelve a cambiarse en el mismo piso dentro de maxDays de la visita
+// anterior. Una visita es una fecha distinta, así que varias filas del mismo día no cuentan como repetición.
+export function recurrences(records, maxDays = 90) {
+    const groups = new Map();
+    records.forEach(record => {
+        const etage = etageKey(record);
+        const raw = record.date || record.fecha;
+        if (!etage || !raw) return;
+        const date = parseRecordDate(raw);
+        if (isNaN(date)) return;
+        const reference = referenceKey(record);
+        const key = `${etage}|${reference}`;
+        const entry = groups.get(key) || { etage, reference, label: referenceLabel(record), days: new Set(), quantity: 0 };
+        entry.days.add(localDateString(date));
+        entry.quantity += Number(record.quantite || 0);
+        groups.set(key, entry);
+    });
+
+    const result = [];
+    groups.forEach(entry => {
+        const days = [...entry.days].sort();
+        let repeats = 0;
+        for (let i = 1; i < days.length; i += 1) {
+            const gap = Math.round((parseRecordDate(days[i]) - parseRecordDate(days[i - 1])) / 86400000);
+            if (gap <= maxDays) repeats += 1;
+        }
+        if (repeats > 0) {
+            result.push({
+                etage: entry.etage,
+                reference: entry.reference,
+                label: entry.label,
+                visits: days.length,
+                repeats,
+                last: days[days.length - 1],
+                quantity: entry.quantity
+            });
+        }
+    });
+    return result.sort((a, b) =>
+        b.repeats - a.repeats || b.visits - a.visits || naturalCompare(a.etage, b.etage) || a.label.localeCompare(b.label, 'fr'));
+}
+
+function rankBy(records, getName) {
+    const totals = {};
+    records.forEach(record => {
+        const name = getName(record);
+        totals[name] = (totals[name] || 0) + Number(record.quantite || 0);
+    });
+    return Object.keys(totals)
+        .map(name => ({ name, total: totals[name] }))
+        .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'fr'));
+}
+
+// Resumen de un mes para el reporte imprimible; las listas van de mayor a menor
+export function monthlyReport(records, monthKey) {
+    const inMonth = records.filter(record => recordMonthKey(record) === monthKey);
+    const docs = uniqueDocsByMonth(inMonth);
+    return {
+        month: monthKey,
+        total: inMonth.reduce((sum, record) => sum + Number(record.quantite || 0), 0),
+        lines: inMonth.length,
+        bons: docs.totalBon,
+        tournees: docs.totalTournee,
+        etages: rankBy(inMonth.filter(record => etageKey(record)), etageKey),
+        references: rankBy(inMonth, referenceLabel),
+        categories: rankBy(inMonth, record => String(record.categorie ?? '').trim() || 'Inconnu'),
+        locataires: rankBy(inMonth, locataireKey)
+    };
+}
+
 // Meses seguidos desde el primero hasta el último, incluidos los que no tienen registros
 export function monthRange(firstKey, lastKey) {
     const months = [];

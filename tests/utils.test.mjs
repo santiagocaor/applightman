@@ -7,6 +7,10 @@ import {
     escapeHtml,
     etageKey,
     uniqueDocsByMonth,
+    recurrences,
+    recordMonths,
+    monthlyReport,
+    referenceLabel,
     isReceptionTask,
     localDateString,
     locataireKey,
@@ -343,4 +347,60 @@ test('uniqueDocsByMonth sin bons ni tournées devuelve todo vacío', () => {
     assert.deepEqual(uniqueDocsByMonth([{ fecha: '2026-08-03', tache: 'Remplacement', quantite: 1 }]), {
         months: [], bon: [], tournee: [], totalBon: 0, totalTournee: 0, withoutNumber: 0
     });
+});
+
+test('recurrences cuenta las visitas que repiten referencia y piso dentro del plazo', () => {
+    const result = recurrences([
+        { fecha: '2026-01-10', etage: '3', id_item: 'A1', description: 'F32T8', quantite: 2 },
+        { fecha: '2026-01-10', etage: '3', id_item: 'A1', description: 'F32T8', quantite: 1 },
+        { fecha: '2026-02-20', etage: '3', id_item: 'A1', description: 'F32T8', quantite: 2 },
+        { fecha: '2026-03-15', etage: '3', id_item: 'A1', description: 'F32T8', quantite: 1 },
+        { fecha: '2026-09-01', etage: '3', id_item: 'A1', description: 'F32T8', quantite: 1 },
+        { fecha: '2026-01-12', etage: '4', id_item: 'A1', description: 'F32T8', quantite: 1 },
+        { fecha: '2026-01-12', etage: '', id_item: 'A1', quantite: 1 },
+        { fecha: '2026-02-01', etage: '4', id_item: 'B2', description: 'LED', quantite: 1 },
+        { fecha: '2026-02-05', etage: '4', id_item: 'B2', description: 'LED', quantite: 1 }
+    ]);
+    assert.equal(result.length, 2);
+    // Piso 3: 4 fechas distintas, tres dentro de 90 días de la anterior y la última fuera del plazo
+    assert.deepEqual(
+        { etage: result[0].etage, reference: result[0].reference, visits: result[0].visits, repeats: result[0].repeats, last: result[0].last },
+        { etage: '3', reference: 'A1', visits: 4, repeats: 2, last: '2026-09-01' }
+    );
+    assert.equal(result[1].etage, '4');
+    assert.equal(result[1].repeats, 1);
+    assert.equal(result[1].label, 'LED');
+});
+
+test('recurrences ignora lo que no se repite y los registros sin fecha o piso', () => {
+    assert.deepEqual(recurrences([
+        { fecha: '2026-01-10', etage: '3', id_item: 'A1', quantite: 1 },
+        { fecha: '2026-06-10', etage: '3', id_item: 'A1', quantite: 1 },
+        { etage: '3', id_item: 'A1', quantite: 1 }
+    ]), []);
+});
+
+test('referenceLabel prefiere la descripción y recordMonths ordena del más reciente', () => {
+    assert.equal(referenceLabel({ id_item: 'A1', description: ' F32T8 ' }), 'F32T8');
+    assert.equal(referenceLabel({ id_item: 'A1' }), 'A1');
+    assert.deepEqual(recordMonths([
+        { fecha: '2026-03-01' }, { fecha: '2026-08-01' }, { fecha: '2026-03-20' }, {}
+    ]), ['2026-08', '2026-03']);
+});
+
+test('monthlyReport resume solo el mes pedido', () => {
+    const report = monthlyReport([
+        { fecha: '2026-08-03', tache: 'Bon de travail', num_bon: '1', etage: '3', locataire: 'Locataire A', categorie: 'Tube', description: 'F32T8', quantite: 4 },
+        { fecha: '2026-08-03', tache: 'Bon de travail', num_bon: '1', etage: '5', locataire: 'Locataire A', categorie: 'LED', description: 'LED 10W', quantite: 1 },
+        { fecha: '2026-08-09', tache: 'Tournée', num_tache: 'T1', etage: '3', locataire: 'Locataire B', categorie: 'Tube', description: 'F32T8', quantite: 2 },
+        { fecha: '2026-09-02', tache: 'Tournée', num_tache: 'T2', etage: '9', locataire: 'Locataire B', categorie: 'Tube', description: 'F32T8', quantite: 50 }
+    ], '2026-08');
+    assert.equal(report.total, 7);
+    assert.equal(report.lines, 3);
+    assert.equal(report.bons, 1);
+    assert.equal(report.tournees, 1);
+    assert.deepEqual(report.etages, [{ name: '3', total: 6 }, { name: '5', total: 1 }]);
+    assert.deepEqual(report.references[0], { name: 'F32T8', total: 6 });
+    assert.deepEqual(report.categories, [{ name: 'Tube', total: 6 }, { name: 'LED', total: 1 }]);
+    assert.deepEqual(report.locataires, [{ name: 'Locataire A', total: 5 }, { name: 'Locataire B', total: 2 }]);
 });

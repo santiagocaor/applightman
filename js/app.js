@@ -73,7 +73,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Los controles se conectan primero: un dato inesperado no debe dejar la app sin respuesta
     setupEventListeners();
-    window.addEventListener('online', () => api.syncOfflineQueue());
+    window.addEventListener('online', () => {
+        ui.updateSyncBadge();
+        api.syncOfflineQueue();
+    });
+    window.addEventListener('offline', () => ui.updateSyncBadge());
 
     try {
         loadInitialData();
@@ -354,7 +358,7 @@ function setupEventListeners() {
                     if (navigator.vibrate) navigator.vibrate([200]);
                     ui.showToast("Enregistré localement (Mode test). Configurez Google Sheets pour enregistrer dans le cloud.", "info");
                     store.addToHistory(record);
-                    ui.resetFormAndRefresh();
+                    ui.resetFormAndRefresh(ui.shouldKeepVisit());
                     api.refreshViews();
                 }
             } catch (err) {
@@ -365,6 +369,28 @@ function setupEventListeners() {
                 if (submitBtn) submitBtn.disabled = false;
             }
         });
+    }
+
+    if (ui.elements.keepVisitInput) {
+        ui.elements.keepVisitInput.checked = store.getKeepVisit();
+        ui.elements.keepVisitInput.addEventListener('change', () => {
+            store.setKeepVisit(ui.elements.keepVisitInput.checked);
+        });
+    }
+
+    if (ui.elements.syncStatus) {
+        ui.elements.syncStatus.addEventListener('click', () => {
+            if (!navigator.onLine) {
+                ui.showToast("Pas de connexion pour le moment. Les enregistrements seront envoyés au retour du réseau.", "info");
+            } else if (store.syncQueue.length > 0) {
+                api.syncOfflineQueue();
+            }
+        });
+    }
+
+    const printReportBtn = document.getElementById('btn-print-report');
+    if (printReportBtn) {
+        printReportBtn.addEventListener('click', () => charts.printMonthlyReport());
     }
 
     if (ui.elements.saveConfigBtn) {

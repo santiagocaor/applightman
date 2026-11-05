@@ -30,6 +30,8 @@ export const elements = {
     numTacheInput: document.getElementById('num_tache'),
     historyContainer: document.getElementById('history-container'),
     syncBadge: document.getElementById('sync-badge'),
+    syncStatus: document.getElementById('sync-status'),
+    keepVisitInput: document.getElementById('keep-visit'),
     filterMonth: document.getElementById('filter-month'),
     filterEtage: document.getElementById('filter-etage'),
     filterLocataire: document.getElementById('filter-locataire'),
@@ -287,6 +289,23 @@ export function updateDateDisplay() {
     elements.dateDisplay.classList.add('placeholder-active');
 }
 
+// Aviso visible en el encabezado cuando no hay conexión o quedan registros sin enviar
+function updateSyncStatus() {
+    const pill = elements.syncStatus;
+    if (!pill) return;
+    const pending = store.syncQueue.length;
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (!offline && pending === 0) {
+        pill.classList.add('hidden-field');
+        return;
+    }
+    const pendingText = `${pending} en attente`;
+    const text = offline ? (pending > 0 ? `Hors ligne · ${pendingText}` : 'Hors ligne') : pendingText;
+    pill.innerHTML = `<span aria-hidden="true" class="material-symbols-rounded">${offline ? 'cloud_off' : 'sync_problem'}</span><span>${escapeHtml(text)}</span>`;
+    pill.title = offline ? 'Pas de connexion : les enregistrements seront envoyés au retour du réseau' : 'Toucher pour synchroniser maintenant';
+    pill.classList.remove('hidden-field');
+}
+
 export function updateSyncBadge() {
     if (elements.syncBadge) {
         if (store.syncQueue.length > 0) {
@@ -296,10 +315,28 @@ export function updateSyncBadge() {
             elements.syncBadge.classList.add('hidden');
         }
     }
+    updateSyncStatus();
 }
 
-export function resetFormAndRefresh() {
+export function shouldKeepVisit() {
+    return Boolean(elements.keepVisitInput && elements.keepVisitInput.checked);
+}
+
+export function resetFormAndRefresh(keepVisit = false) {
+    // form.reset() también desmarca la casilla: su estado se conserva
+    const keepChecked = shouldKeepVisit();
+    const visit = keepVisit ? {
+        date: elements.dateInput ? elements.dateInput.value : '',
+        tache: elements.tacheSelect ? elements.tacheSelect.value : '',
+        numBon: elements.numBonInput ? elements.numBonInput.value : '',
+        numSoumission: elements.numSoumissionInput ? elements.numSoumissionInput.value : '',
+        numTache: elements.numTacheInput ? elements.numTacheInput.value : '',
+        locataire: elements.locataireSelect ? elements.locataireSelect.value : '',
+        etage: elements.etageSelect ? elements.etageSelect.value : ''
+    } : null;
+
     if (elements.form) elements.form.reset();
+    if (elements.keepVisitInput) elements.keepVisitInput.checked = keepChecked;
     if (elements.dateInput) {
         elements.dateInput.value = localDateString();
         updateDateDisplay();
@@ -316,6 +353,8 @@ export function resetFormAndRefresh() {
     
     populateAllSelects();
     
+    if (visit) restoreVisit(visit);
+
     // Reset edit state
     store.setEditingRecordUuid(null);
     if (elements.form) {
@@ -327,6 +366,24 @@ export function resetFormAndRefresh() {
         if (cancelBtn) {
             cancelBtn.style.display = 'none';
         }
+    }
+}
+
+// Devuelve al formulario los datos de la visita para anotar otra línea del mismo bon o tournée
+function restoreVisit(visit) {
+    if (elements.dateInput && visit.date) {
+        elements.dateInput.value = visit.date;
+        updateDateDisplay();
+    }
+    if (elements.locataireSelect) elements.locataireSelect.value = visit.locataire;
+    if (elements.etageSelect) elements.etageSelect.value = visit.etage;
+    if (elements.tacheSelect && visit.tache) {
+        elements.tacheSelect.value = visit.tache;
+        // El cambio de tarea muestra el campo de número correspondiente (y lo vacía): el número se pone después
+        elements.tacheSelect.dispatchEvent(new Event('change'));
+        if (elements.numBonInput) elements.numBonInput.value = visit.numBon;
+        if (elements.numSoumissionInput) elements.numSoumissionInput.value = visit.numSoumission;
+        if (elements.numTacheInput) elements.numTacheInput.value = visit.numTache;
     }
 }
 
