@@ -84,7 +84,7 @@ export function weekdayTotals(records) {
 
 // Cantidad reemplazada por mes y categoría, para gráficas apiladas.
 // categories va de la más usada a la menos usada; data[categoría][i] corresponde a months[i].
-export function monthlyByCategory(records) {
+export function monthlyByCategory(records, { fillGaps = false } = {}) {
     const totals = {};
     const categoryTotals = {};
     records.forEach(record => {
@@ -97,12 +97,14 @@ export function monthlyByCategory(records) {
         categoryTotals[category] = (categoryTotals[category] || 0) + qty;
     });
 
-    const months = Object.keys(totals).sort();
+    let months = Object.keys(totals).sort();
+    // En una gráfica de líneas los meses sin registros deben aparecer, en 0, para no falsear la escala del tiempo
+    if (fillGaps && months.length > 0) months = monthRange(months[0], months[months.length - 1]);
     const categories = Object.keys(categoryTotals)
         .sort((a, b) => categoryTotals[b] - categoryTotals[a] || a.localeCompare(b, 'fr'));
     const data = {};
     categories.forEach(category => {
-        data[category] = months.map(month => totals[month][category] || 0);
+        data[category] = months.map(month => (totals[month] && totals[month][category]) || 0);
     });
     return { months, categories, data };
 }

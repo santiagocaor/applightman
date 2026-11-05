@@ -228,3 +228,17 @@ test('monthlySeries ignora registros sin fecha válida y no falla sin datos', ()
         { months: [], series: { A: [] } });
     assert.deepEqual(monthlySeries([], []), { months: [], series: {} });
 });
+
+test('monthlyByCategory con fillGaps incluye los meses sin registros en 0', () => {
+    const { months, data } = monthlyByCategory([
+        { fecha: '2026-06-05', categorie: 'LED', quantite: 4 },
+        { fecha: '2026-09-05', categorie: 'LED', quantite: 6 },
+        { fecha: '2026-09-06', categorie: 'PL', quantite: 2 }
+    ], { fillGaps: true });
+    assert.deepEqual(months, ['2026-06', '2026-07', '2026-08', '2026-09']);
+    assert.deepEqual(data, { LED: [4, 0, 0, 6], PL: [0, 0, 0, 2] });
+});
+
+test('monthlyByCategory con fillGaps no falla sin datos', () => {
+    assert.deepEqual(monthlyByCategory([], { fillGaps: true }), { months: [], categories: [], data: {} });
+});
