@@ -6,12 +6,13 @@ const SHEET_NAME_ETAGES = "Étages";
 const SHEET_NAME_TACHES = "Tâches";
 const SHEET_NAME_LOCATAIRES = "Locataire";
 const SHEET_NAME_RECORDS = "Registros";
-const SHEET_NAME_INVENTAIRE = "Inventaire";
 
 // Tiempo máximo de espera para escribir cuando otro envío está en curso
 const LOCK_TIMEOUT_MS = 25000;
 // Registros más recientes que se envían a la app; si hay más, la app lo avisa en Statistiques
 const RECORDS_LIMIT = 5000;
+// Nombres admitidos para la columna del precio en la hoja de registros
+const PRIX_HEADER = /^prix$|^price$|^cout$|^coût$/i;
 
 // El token se define en Configuración del proyecto > Propiedades de la secuencia de comandos > API_TOKEN.
 // Mientras no exista, la API sigue abierta para no cortar los dispositivos que aún no lo tienen.
@@ -29,9 +30,30 @@ function setup() {
   getOrCreateSheetWithHeaders(SHEET_NAME_ETAGES, ["Étages"]);
   getOrCreateSheetWithHeaders(SHEET_NAME_TACHES, ["Tâches"]);
   getOrCreateSheetWithHeaders(SHEET_NAME_LOCATAIRES, ["Locataire"]);
-  getOrCreateSheetWithHeaders(SHEET_NAME_INVENTAIRE, ["Id", "Description", "Catégorie", "Name", "Prix", "Stock", "Limite", "Dépense", "Solde"]);
   getOrCreateSheetWithHeaders(SHEET_NAME_RECORDS, ["Date", "Type de tâche", "Tournée", "Bon de travail", "Soumission", "Locataire", "Étage", "Catégorie", "Description", "Quantité", "Id", "Note", "UUID"]);
   ensureUUIDColumn();
+  ensurePrixColumn();
+}
+
+function ensurePrixColumn() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_RECORDS);
+  if (!sheet) return;
+  const lastCol = sheet.getLastColumn();
+  if (lastCol === 0) return;
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (!headers.some(h => PRIX_HEADER.test(String(h).trim()))) {
+    sheet.getRange(1, lastCol + 1).setValue("Prix");
+  }
+}
+
+// Una columna calculada con ARRAYFORMULA se rompería al escribir un valor en ella
+function columnHasArrayFormula(sheet, column) {
+  return [1, 2].some(row => /arrayformula/i.test(sheet.getRange(row, column).getFormula()));
+}
+
+// El precio guardado nunca reemplaza una fórmula de la hoja
+function canWritePrix(sheet, rowIndex, column) {
+  return !columnHasArrayFormula(sheet, column) && !sheet.getRange(rowIndex, column).getFormula();
 }
 
 function ensureUUIDColumn() {
@@ -77,6 +99,8 @@ function doPost(e) {
         sheet.appendRow(headers);
       }
 
+      const prixIdx = headers.findIndex(h => PRIX_HEADER.test(String(h).trim()));
+      const canSavePrix = prixIdx > -1 && !columnHasArrayFormula(sheet, prixIdx + 1);
       const idIdx = headers.indexOf("Id");
       let fechaIdx = headers.indexOf("Date");
       if (fechaIdx === -1) fechaIdx = headers.indexOf("Fecha");
@@ -128,6 +152,7 @@ function doPost(e) {
         if (numSoumIdx > -1) row[numSoumIdx] = record.num_soumission;
         if (noteIdx > -1) row[noteIdx] = record.note;
         if (uuidIdx > -1) row[uuidIdx] = record.uuid;
+        if (canSavePrix && record.prix !== undefined) row[prixIdx] = record.prix;
 
         rowsToAppend.push(row);
         if (record.uuid) {
@@ -190,6 +215,10 @@ function doPost(e) {
               for (let c = 0; c < headers.length; c++) {
                 const value = getEditedCellValue(headers[c], record);
                 if (value !== undefined) sheet.getRange(rowIndex, c + 1).setValue(value);
+                if (PRIX_HEADER.test(String(headers[c]).trim()) && record.prix !== undefined && record.prix !== ""
+                    && canWritePrix(sheet, rowIndex, c + 1)) {
+                  sheet.getRange(rowIndex, c + 1).setValue(record.prix);
+                }
               }
 
               return createJsonResponse({ status: 'success', message: 'Record updated successfully' });
@@ -391,7 +420,6 @@ function buildDataResponse() {
       const limiteIdx = headers.findIndex(h => /^limite$|^limit$/i.test(h));
       const consumoIdx = headers.findIndex(h => /consom|consumo|d[eé]pense/i.test(h));
       const promMesIdx = headers.findIndex(h => /moy\.\/mois|moy|prom|moyenne/i.test(h));
-      const invInicIdx = headers.findIndex(h => /inv\.?\s*inic/i.test(h));
 
       for (let i = 1; i < invData.length; i++) {
         const row = invData[i];
@@ -407,7 +435,6 @@ function buildDataResponse() {
             limite: limiteIdx > -1 ? row[limiteIdx] : "",
             consumo: consumoIdx > -1 ? row[consumoIdx] : "",
             promMes: promMesIdx > -1 ? row[promMesIdx] : "",
-            invInicial: invInicIdx > -1 ? row[invInicIdx] : "",
             solde: "" // no hay columna Solde en Opciones
           });
         }
@@ -442,7 +469,7 @@ function buildDataResponse() {
     let numSoumIdx = headers.indexOf("# Soumission");
     if (numSoumIdx === -1) numSoumIdx = headers.indexOf("Soumission");
     const idIdx = headers.indexOf("Id");
-    const prixIdx = headers.findIndex(h => /^prix$|^price$|^cout$|^coût$/i.test(String(h).trim()));
+    const prixIdx = headers.findIndex(h => PRIX_HEADER.test(String(h).trim()));
     const noteIdx = headers.indexOf("Note");
     const uuidIdx = headers.indexOf("UUID");
 

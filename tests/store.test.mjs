@@ -150,6 +150,13 @@ test('editar con otro artículo descarta el precio anterior', async () => {
     assert.equal(store.records[0].prix, undefined);
 });
 
+test('editar con otro artículo guarda el precio nuevo que trae', async () => {
+    const store = await openStore(CLOUD);
+    store.setRecords([record({ prix: 12 })]);
+    store.editRecordLocally('u1', record({ id_item: 'B2', prix: 30 }));
+    assert.equal(store.records[0].prix, 30);
+});
+
 test('editar y borrar un pendiente actúa sobre la cola', async () => {
     const store = await openStore(CLOUD);
     store.addToSyncQueue(record({ uuid: 'p1' }));

@@ -22,6 +22,10 @@ class FakeSheet {
     getRange(row, col, numRows = 1, numCols = 1) {
         const sheet = this;
         return {
+            getFormula() {
+                const value = (sheet.rows[row - 1] || [])[col - 1];
+                return typeof value === 'string' && value.startsWith('=') ? value : '';
+            },
             getValues() {
                 return Array.from({ length: numRows }, (_, r) =>
                     Array.from({ length: numCols }, (_, c) => (sheet.rows[row - 1 + r] || [])[col - 1 + c] ?? ''));
@@ -52,8 +56,7 @@ function setup(records = [], token = null) {
         Opciones: new FakeSheet('Opciones', [['Id', 'Description', 'Catégorie', 'Prix', 'Stock'], ['A1', 'Desc', 'Cat', 5, 10]]),
         'Étages': new FakeSheet('Étages', [['Étages'], [1]]),
         'Tâches': new FakeSheet('Tâches', [['Tâches'], ['Tournée']]),
-        Locataire: new FakeSheet('Locataire', [['Locataire'], ['L']]),
-        Inventaire: new FakeSheet('Inventaire', [['Id']])
+        Locataire: new FakeSheet('Locataire', [['Locataire'], ['L']])
     };
     const lock = {
         taken: 0,
@@ -112,6 +115,46 @@ test('editar cambia las columnas de la app y no toca Prix ni fórmulas', () => {
     assert.equal(line[col('Note')], '');
     assert.equal(line[col('UUID')], 'u1');
     assert.ok(!s.sheets.Registros.writes.some(w => w.col === col('Prix') + 1));
+});
+
+test('agregar guarda el precio del registro', () => {
+    const s = setup();
+    const record = { uuid: 'u1', fecha: '2026-08-01', id_item: 'A1', quantite: 1, prix: 4.5 };
+    s.post({ action: 'addRecordsBatch', records: [record] });
+    assert.equal(s.sheets.Registros.rows[1][col('Prix')], 4.5);
+});
+
+test('agregar crea la columna Prix si la hoja no la tiene', () => {
+    const s = setup();
+    s.sheets.Registros.rows = [HEADERS.filter(h => h !== 'Prix')];
+    s.post({ action: 'addRecordsBatch', records: [{ uuid: 'u1', quantite: 1, prix: 7 }] });
+    const headers = s.sheets.Registros.rows[0];
+    assert.equal(headers.at(-1), 'Prix');
+    assert.equal(s.sheets.Registros.rows[1][headers.indexOf('Prix')], 7);
+});
+
+test('agregar no rompe una columna Prix con ARRAYFORMULA', () => {
+    const s = setup([row('u1', '=ARRAYFORMULA(VLOOKUP(K2:K))')]);
+    s.post({ action: 'addRecordsBatch', records: [{ uuid: 'u2', quantite: 1, prix: 7 }] });
+    assert.equal(s.sheets.Registros.rows[2][col('Prix')], '');
+});
+
+test('editar guarda el precio nuevo si la celda no tiene fórmula', () => {
+    const s = setup([row('u1', 3)]);
+    s.post({ action: 'editRecord', uuid: 'u1', record: { quantite: 1, prix: 9 } });
+    assert.equal(s.sheets.Registros.rows[1][col('Prix')], 9);
+});
+
+test('editar sin precio conserva el que había', () => {
+    const s = setup([row('u1', 3)]);
+    s.post({ action: 'editRecord', uuid: 'u1', record: { quantite: 1, prix: '' } });
+    assert.equal(s.sheets.Registros.rows[1][col('Prix')], 3);
+});
+
+test('editar con precio nunca reemplaza una fórmula', () => {
+    const s = setup([row('u1')]);
+    s.post({ action: 'editRecord', uuid: 'u1', record: { quantite: 1, prix: 9 } });
+    assert.equal(s.sheets.Registros.rows[1][col('Prix')], '=VLOOKUP(K2)');
 });
 
 test('un UUID inexistente da error y libera el bloqueo', () => {

@@ -3,6 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "lint": "eslint .",
+    "script:login": "npx @google/clasp@3.4.1 login",
+    "script:push": "npx @google/clasp@3.4.1 push",
+    "script:deploy": "npx @google/clasp@3.4.1 redeploy",
+    "script:pull": "npx @google/clasp@3.4.1 pull"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0"
   }
 }

@@ -3,7 +3,7 @@ import * as store from './store.js';
 import * as ui from './ui.js';
 import * as charts from './charts.js';
 import * as api from './api.js';
-import { generateUUID, debounce, localDateString } from './utils.js';
+import { generateUUID, debounce, localDateString, parsePrice } from './utils.js';
 
 const ThemeManager = {
     init() {
@@ -148,7 +148,11 @@ function setupEventListeners() {
         ui.elements.dateInput.addEventListener('input', ui.updateDateDisplay);
         ui.elements.dateInput.addEventListener('change', ui.updateDateDisplay);
         ui.elements.dateInput.addEventListener('click', () => {
-            try { ui.elements.dateInput.showPicker(); } catch (e) {}
+            try {
+                ui.elements.dateInput.showPicker();
+            } catch (e) {
+                // Algunos navegadores no lo admiten: el campo de fecha sigue funcionando
+            }
         });
     }
 
@@ -339,6 +343,15 @@ function setupEventListeners() {
                 num_tache: formData.get('num_tache') || "",
                 note: formData.get('note') || ""
             };
+
+            // El precio queda guardado en el registro: un cambio de precio futuro no altera este costo
+            const editedRecord = store.editingRecordUuid
+                ? store.getAllRecords().find(r => r.uuid === store.editingRecordUuid)
+                : null;
+            const keepsStoredPrice = editedRecord
+                && editedRecord.id_item === record.id_item
+                && parsePrice(editedRecord.prix) !== null;
+            record.prix = keepsStoredPrice ? editedRecord.prix : (charts.getCatalogPrice(record) ?? "");
 
             const historyData = store.getHistory();
             if (historyData.length > 0 && !store.editingRecordUuid) {

@@ -250,7 +250,7 @@ export function editRecordLocally(uuid, updatedRecord) {
     records = records.map(r => {
         if (r.uuid !== uuid) return r;
         const merged = normalizeRecord({ ...r, ...updatedLocalRecord });
-        if (r.id_item !== merged.id_item) delete merged.prix;
+        if (r.id_item !== merged.id_item && updatedRecord.prix === undefined) delete merged.prix;
         return merged;
     });
     persistRecords();

@@ -8,42 +8,6 @@ let statsTableSearchQuery = '';
 let isStatsTableCollapsed = true;
 let lastSelectedEtage = null;
 
-// Plugin de Chart.js para dibujar líneas señaladoras en gráficos circulares (pie)
-export const pieLinesPlugin = {
-    id: 'pieLinesPlugin',
-    afterDraw: (chart) => {
-        const ctx = chart.ctx;
-        chart.data.datasets.forEach((dataset, datasetIndex) => {
-            const meta = chart.getDatasetMeta(datasetIndex);
-            if (chart.config.type !== 'pie') return;
-            
-            meta.data.forEach((element, index) => {
-                const { x, y, startAngle, endAngle, outerRadius } = element;
-                const midAngle = startAngle + (endAngle - startAngle) / 2;
-                
-                const startX = x + Math.cos(midAngle) * outerRadius;
-                const startY = y + Math.sin(midAngle) * outerRadius;
-                
-                const endX = x + Math.cos(midAngle) * (outerRadius + 14);
-                const endY = y + Math.sin(midAngle) * (outerRadius + 14);
-                
-                ctx.save();
-                ctx.beginPath();
-                ctx.moveTo(startX, startY);
-                ctx.lineTo(endX, endY);
-                
-                const bgColors = dataset.backgroundColor;
-                const color = Array.isArray(bgColors) ? bgColors[index] : bgColors;
-                
-                ctx.strokeStyle = color || '#cbd5e1';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                ctx.restore();
-            });
-        });
-    }
-};
-
 // [FIX M-7] Usa la función centralizada de filtrado de store.js en lugar de duplicar la lógica
 export function getFilteredRecords() {
     const allRecords = store.getAllRecords();
@@ -77,7 +41,11 @@ export function getFilteredRecords() {
 function resolveUnitPrice(r) {
     const ownPrice = parsePrice(r.prix);
     if (ownPrice !== null) return ownPrice;
+    return getCatalogPrice(r);
+}
 
+// Precio vigente del artículo en el catálogo, o null si no tiene uno válido
+export function getCatalogPrice(r) {
     const normalize = (value) => String(value ?? "").trim().toLowerCase();
     const idKey = normalize(r.id_item);
     const descKey = normalize(r.description);
@@ -150,17 +118,6 @@ export function updateDashboard() {
         return sum + (qty * unitPrice);
     }, 0);
     
-    if (ui.elements.statTotal) {
-        ui.elements.statTotal.textContent = totalBulbs;
-    }
-    if (ui.elements.statPrice) {
-        ui.elements.statPrice.textContent = totalPrice.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
-    }
-    if (ui.elements.statUnitAvg) {
-        const avgUnit = totalBulbs > 0 ? (totalPrice / totalBulbs) : 0;
-        ui.elements.statUnitAvg.textContent = avgUnit.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
-    }
-    
     // 1.5 Ampoules changées par mois y Total Prix par mois
     const monthlyData = {};
     const monthlyPriceData = {};
@@ -221,14 +178,12 @@ export function updateDashboard() {
     });
 
     // 4 & 5. Intervenciones y bombillas por planta
-    const etageInterventions = {};
     const etageBulbsByCategory = {};
     dashboardRecords.forEach(r => {
         if (r.etage !== undefined && r.etage !== null) {
             const etageStr = String(r.etage).trim();
             const cat = r.categorie || 'Inconnu';
             if (etageStr) {
-                etageInterventions[etageStr] = (etageInterventions[etageStr] || 0) + 1;
                 if (!etageBulbsByCategory[etageStr]) etageBulbsByCategory[etageStr] = {};
                 etageBulbsByCategory[etageStr][cat] = (etageBulbsByCategory[etageStr][cat] || 0) + Number(r.quantite || 0);
             }
@@ -335,46 +290,7 @@ export function updateDashboard() {
     });
     const catLabels = Object.keys(catCounts).sort((a, b) => catCounts[b] - catCounts[a]);
 
-    const etageCategories = new Set();
-    Object.values(etageBulbsByCategory).forEach(etageData => {
-        Object.keys(etageData).forEach(cat => etageCategories.add(cat));
-    });
-    
-    const datasetsForEtage = Array.from(etageCategories).map(cat => {
-        const catData = sortedEtages.map(et => etageBulbsByCategory[et]?.[cat] || 0);
-        return {
-            label: cat,
-            data: catData,
-            backgroundColor: getCategoryColor(cat),
-            borderWidth: 0
-        };
-    });
-
     const textColor = isDarkMode ? '#94a3b8' : '#475569';
-
-    datasetsForEtage.push({
-        label: 'Total',
-        data: sortedEtages.map(() => 0),
-        backgroundColor: 'transparent',
-        borderColor: 'transparent',
-        borderWidth: 0,
-        datalabels: {
-            display: true,
-            anchor: 'end',
-            align: 'right',
-            color: textColor,
-            font: { weight: 'bold', family: 'Inter', size: 13 },
-            formatter: (value, context) => {
-                let sum = 0;
-                context.chart.data.datasets.forEach(ds => {
-                    if (ds.label !== 'Total' && ds.data[context.dataIndex]) {
-                        sum += ds.data[context.dataIndex];
-                    }
-                });
-                return sum > 0 ? sum : '';
-            }
-        }
-    });
 
     const topProductsColors = sortedProducts.map(p => {
         const cat = productCategoryMap[p];
@@ -425,7 +341,7 @@ export function updateDashboard() {
                 anchor: 'end',
                 align: 'top',
                 color: textColor,
-                font: { weight: 'bold', family: 'Inter', size: 12 },
+                font: { weight: 'bold', family: 'Outfit', size: 12 },
                 formatter: (val) => val > 0 ? val : ''
             }
         }
@@ -457,7 +373,7 @@ export function updateDashboard() {
                 anchor: 'end',
                 align: 'top',
                 color: textColor,
-                font: { weight: 'bold', family: 'Inter', size: 12 },
+                font: { weight: 'bold', family: 'Outfit', size: 12 },
                 formatter: (val) => val > 0 ? `${Number(val).toLocaleString('fr-CA', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} $` : ''
             }
         }
@@ -474,7 +390,7 @@ export function updateDashboard() {
                 position: 'bottom',
                 onClick: () => {}, 
                 labels: {
-                    generateLabels: function(chart) {
+                    generateLabels: function() {
                         const uniqueCats = new Set();
                         sortedProducts.forEach(p => {
                             if (productCategoryMap[p]) uniqueCats.add(productCategoryMap[p]);
@@ -528,7 +444,7 @@ export function updateDashboard() {
                     return `${value}`;
                 },
                 color: '#ffffff',
-                font: { weight: 'bold', family: 'Inter', size: window.innerWidth < 480 ? 12 : 14 }
+                font: { weight: 'bold', family: 'Outfit', size: window.innerWidth < 480 ? 12 : 14 }
             }
         }
     });
@@ -561,7 +477,7 @@ export function updateDashboard() {
                 anchor: 'end',
                 align: 'right',
                 color: textColor,
-                font: { weight: 'bold', family: 'Inter', size: 12 },
+                font: { weight: 'bold', family: 'Outfit', size: 12 },
                 formatter: (val) => val > 0 ? val : ''
             }
         }
@@ -605,7 +521,7 @@ export function updateDashboard() {
                 align: 'top',
                 anchor: 'center',
                 color: textColor,
-                font: { weight: 'bold', family: 'Inter', size: 11 },
+                font: { weight: 'bold', family: 'Outfit', size: 11 },
                 formatter: (value) => value > 0 ? value : ''
             }
         }
@@ -647,7 +563,7 @@ export function updateDashboard() {
                 anchor: 'end',
                 align: 'right',
                 color: textColor,
-                font: { weight: 'bold', family: 'Inter', size: 12 },
+                font: { weight: 'bold', family: 'Outfit', size: 12 },
                 formatter: (val) => val > 0 ? val : ''
             }
         }
@@ -684,7 +600,7 @@ function renderChart(canvasId, type, labels, data, colors, customOptions = {}) {
                 labels: { 
                     color: textColor, 
                     padding: 20, 
-                    font: { family: 'Inter', size: 12 },
+                    font: { family: 'Outfit', size: 12 },
                     filter: (item) => item.text !== 'Total',
                     generateLabels: (chart) => {
                         if (['pie', 'doughnut'].includes(type)) {
@@ -725,8 +641,8 @@ function renderChart(canvasId, type, labels, data, colors, customOptions = {}) {
                 borderWidth: 1,
                 padding: 10,
                 cornerRadius: 8,
-                titleFont: { family: 'Inter', size: 13, weight: 'bold' },
-                bodyFont: { family: 'Inter', size: 12 },
+                titleFont: { family: 'Outfit', size: 13, weight: 'bold' },
+                bodyFont: { family: 'Outfit', size: 12 },
                 boxPadding: 4
             },
             datalabels: {
@@ -735,17 +651,17 @@ function renderChart(canvasId, type, labels, data, colors, customOptions = {}) {
                 align: (['pie', 'doughnut'].includes(type) || customOptions.datasets) ? 'center' : (customOptions.indexAxis === 'y' ? 'right' : 'top'),
                 color: (['pie', 'doughnut'].includes(type) || customOptions.datasets) ? '#fff' : textColor,
                 offset: customOptions.datasets ? 0 : 4,
-                font: { weight: 'bold', family: 'Inter' },
+                font: { weight: 'bold', family: 'Outfit' },
                 formatter: (value) => value > 0 ? value : ''
             }
         },
         scales: ['pie', 'doughnut'].includes(type) ? {} : {
             x: {
-                ticks: { precision: 0, color: textColor, font: { family: 'Inter' } },
+                ticks: { precision: 0, color: textColor, font: { family: 'Outfit' } },
                 grid: { color: gridColor, drawBorder: false }
             },
             y: {
-                ticks: { precision: 0, color: textColor, font: { family: 'Inter' } },
+                ticks: { precision: 0, color: textColor, font: { family: 'Outfit' } },
                 grid: { color: gridColor, drawBorder: false }
             }
         },
@@ -805,16 +721,10 @@ function renderChart(canvasId, type, labels, data, colors, customOptions = {}) {
         options.datasets.bar.barThickness = 26;
     }
 
-    const chartPlugins = [];
-    if (customOptions.extraPlugins) {
-        chartPlugins.push(...customOptions.extraPlugins);
-    }
-
     charts[canvasId] = new Chart(ctx, {
         type: type,
         data: { labels: labels, datasets: finalDatasets },
-        options: options,
-        plugins: chartPlugins
+        options: options
     });
 }
 

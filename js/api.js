@@ -12,7 +12,7 @@ async function fetchWithTimeout(url, options = {}) {
     try {
         return await fetch(url, { ...options, signal: controller.signal });
     } catch (error) {
-        if (error.name === 'AbortError') throw new Error("Délai de connexion dépassé");
+        if (error.name === 'AbortError') throw new Error("Délai de connexion dépassé", { cause: error });
         throw error;
     } finally {
         clearTimeout(timer);
@@ -25,7 +25,7 @@ async function parseResponse(response) {
     try {
         result = await response.json();
     } catch (error) {
-        throw new Error("Réponse invalide du serveur");
+        throw new Error("Réponse invalide du serveur", { cause: error });
     }
     if (result.status !== 'success') throw new Error(result.message || 'Erreur serveur');
     return result;

@@ -1589,3 +1589,9 @@ body {
         scroll-behavior: auto !important;
     }
 }
+
+/* Tema oscuro: icono claro sobre fondo azul, con contraste suficiente */
+[data-theme="dark"] .stat-icon-wrapper,
+[data-theme="dark"] .nav-item.active .material-symbols-rounded {
+    color: var(--primary);
+}

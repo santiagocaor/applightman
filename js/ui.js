@@ -4,8 +4,6 @@ import * as store from './store.js';
 import { deleteRecord } from './api.js';
 
 export const elements = {
-    navItems: document.querySelectorAll('.nav-item'),
-    views: document.querySelectorAll('.view'),
     form: document.getElementById('record-form'),
     loader: document.getElementById('loader'),
     loaderText: document.getElementById('loader-text'),
@@ -457,7 +455,7 @@ export function renderHistory() {
     const remainingCount = Math.max(0, history.length - historyVisibleCount);
 
     elements.historyContainer.innerHTML = history.slice(0, historyVisibleCount).map((r, index) => {
-        let dateStr = "";
+        let dateStr;
         try {
             const d = parseRecordDate(r.fecha || r.date);
             if (!isNaN(d)) {
@@ -470,9 +468,8 @@ export function renderHistory() {
             dateStr = r.fecha || r.date || "-";
         }
 
-        let detailsVal = "";
         const num = r.num_tache || r.num_bon || r.num_soumission;
-        detailsVal = num ? `#${num}` : "-";
+        const detailsVal = num ? `#${num}` : "-";
 
         const foundOpt = store.appOptions.opciones.find(opt => opt.id === r.id_item);
         const displayDesc = (foundOpt && foundOpt.description) ? foundOpt.description : (r.description || r.id_item || 'N/A');
@@ -579,7 +576,7 @@ export function renderHistory() {
     // Agregar eventos a botones de eliminar
     const deleteBtns = elements.historyContainer.querySelectorAll('.delete-btn');
     deleteBtns.forEach(btn => {
-        btn.addEventListener('click', async (e) => {
+        btn.addEventListener('click', async () => {
             const uuid = btn.getAttribute('data-uuid');
             const confirmed = await showConfirm("Voulez-vous vraiment supprimer cet enregistrement ?");
             if (confirmed) {

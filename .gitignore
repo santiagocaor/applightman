@@ -23,3 +23,9 @@ Desktop.ini
 
 # Données internes : à ne pas publier sur GitHub Pages
 BasedeDatos/
+
+# Herramientas de desarrollo
+node_modules/
+.clasp.json
+.clasprc.json
+.claude/

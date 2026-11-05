@@ -65,7 +65,7 @@ export function recordMonthKey(record) {
 export function parsePrice(value) {
     if (typeof value === 'number') return isFinite(value) ? value : null;
     if (value === undefined || value === null) return null;
-    const cleaned = String(value).replace(/[\s $]/g, '').replace(',', '.');
+    const cleaned = String(value).replace(/[\s$]/g, '').replace(',', '.');
     if (cleaned === '') return null;
     const parsed = Number(cleaned);
     return isNaN(parsed) ? null : parsed;
