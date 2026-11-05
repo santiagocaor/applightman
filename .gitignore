@@ -1,0 +1,25 @@
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Google Drive shortcuts
+*.gsheet
+*.gslides
+*.gdoc
+
+# IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Excel lock files
+~$*
+
+# Données internes : à ne pas publier sur GitHub Pages
+BasedeDatos/
