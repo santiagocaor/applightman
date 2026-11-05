@@ -1,7 +1,7 @@
 {
   "name": "Lightman App",
   "short_name": "Lightman",
-  "description": "App para registro de reemplazos de luminarias",
+  "description": "Suivi des remplacements de luminaires",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#ffffff",

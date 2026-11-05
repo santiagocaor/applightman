@@ -78,12 +78,12 @@ export const mockOptions = {
     opciones: [
         { id: "FC-01", description: "801014 TCP CF14/27K SPIRAL", categorie: "Flux Compact", prix: 4.50 },
         { id: "FC-02", description: "CF11/T2/27K/SPIRAL/E26", categorie: "Flux Compact", prix: 5.25 },
-        { id: "LED-01", description: "Foco LED 10W", categorie: "Éclairage Général", prix: 8.00 }
+        { id: "LED-01", description: "Ampoule DEL 10 W", categorie: "Éclairage Général", prix: 8.00 }
     ],
     inventory: [
         { id: "FC-01", description: "801014 TCP CF14/27K SPIRAL", categorie: "Flux Compact", prix: 4.50, stock: 25, limite: 5 },
         { id: "FC-02", description: "CF11/T2/27K/SPIRAL/E26", categorie: "Flux Compact", prix: 5.25, stock: 18, limite: 5 },
-        { id: "LED-01", description: "Foco LED 10W", categorie: "Éclairage Général", prix: 8.00, stock: 32, limite: 8 }
+        { id: "LED-01", description: "Ampoule DEL 10 W", categorie: "Éclairage Général", prix: 8.00, stock: 32, limite: 8 }
     ],
     etage: ["25", "24", "23", "22", "21", "20", "19", "18", "17", "16A", "16", "15", "14", "12", "11", "10", "9", "8", "7A", "7", "6", "5", "4", "3", "2", "1", "RDC", "SS1", "SS2", "SS3"],
     tache: ["Bon de travail", "Tournée"],

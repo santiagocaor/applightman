@@ -1,6 +1,6 @@
 // Cambiar la versión solo sirve para limpiar la caché: los archivos de la app se piden primero a la red,
 // de modo que cada despliegue llega a los dispositivos instalados sin tocar este archivo.
-const CACHE_NAME = 'lightman-cache-v90';
+const CACHE_NAME = 'lightman-cache-v91';
 
 // Con mala señal no se espera a la red más de este tiempo si hay una copia guardada
 const NETWORK_TIMEOUT_MS = 3000;
@@ -23,9 +23,8 @@ const CORE_URLS = [
 
 // [FIX M-3] CDNs externos ahora también se guardan en caché para modo offline completo
 const CDN_URLS = [
-  'https://cdn.jsdelivr.net/npm/chart.js',
-  'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0',
-  'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.6.1',
+  'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0',
   'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap',
   'https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200'
 ];

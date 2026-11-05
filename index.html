@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lightman App</title>
 
     <!-- PWA Setup -->
@@ -39,9 +39,9 @@
             <h1>Lightman</h1>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <a href="#" class="nav-item icon-btn" data-target="view-config" title="Configuration"
+            <a href="#" class="nav-item icon-btn" data-target="view-config" title="Configuration" aria-label="Configuration"
                 style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; text-decoration: none;">
-                <span class="material-symbols-rounded" style="font-size: 1.2rem;">settings</span>
+                <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1.2rem;">settings</span>
             </a>
         </div>
     </header>
@@ -52,11 +52,11 @@
         <!-- VIEW: REGISTRO -->
         <section id="view-registro" class="view active">
             <div class="card">
-                <h2><span class="material-symbols-rounded" style="color: var(--primary);">add_circle</span> Nouveau Remplacement</h2>
+                <h2><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary);">add_circle</span> Nouveau Remplacement</h2>
                 <form id="record-form">
 
                     <div class="form-group">
-                        <label for="date"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">calendar_today</span> Date</label>
+                        <label for="date"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">calendar_today</span> Date</label>
                         <div class="date-input-container">
                             <input type="date" id="date" name="date" required>
                             <span id="date-display" class="date-display-overlay"></span>
@@ -64,7 +64,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="tache"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">build</span> Type de tâche</label>
+                        <label for="tache"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">build</span> Type de tâche</label>
                         <select id="tache" name="tache" required>
                             <option value="" disabled selected>Sélectionnez le type de tâche</option>
                             <!-- Llenado fijo por JS -->
@@ -72,22 +72,22 @@
                     </div>
 
                     <div class="form-group hidden-field" id="group-bon">
-                        <label for="num_bon"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">tag</span> Bon de travail</label>
+                        <label for="num_bon"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">tag</span> Bon de travail</label>
                         <input type="text" id="num_bon" name="num_bon" placeholder="Numéro du bon de travail">
                     </div>
 
                     <div class="form-group hidden-field" id="group-soumission">
-                        <label for="num_soumission"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">tag</span> Soumission</label>
+                        <label for="num_soumission"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">tag</span> Soumission</label>
                         <input type="text" id="num_soumission" name="num_soumission" placeholder="Numéro de soumission">
                     </div>
 
                     <div class="form-group hidden-field" id="group-tache-num">
-                        <label for="num_tache"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">tag</span> Tournée</label>
+                        <label for="num_tache"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">tag</span> Tournée</label>
                         <input type="text" id="num_tache" name="num_tache" placeholder="Numéro de la tournée">
                     </div>
 
                     <div class="form-group" id="group-locataire">
-                        <label for="locataire"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">apartment</span> Locataire</label>
+                        <label for="locataire"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">apartment</span> Locataire</label>
                         <select id="locataire" name="locataire">
                             <option value="" selected>Sélectionnez le locataire</option>
                             <!-- Llenado por Google Sheets -->
@@ -95,7 +95,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="etage"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">domain</span> Étage</label>
+                        <label for="etage"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">domain</span> Étage</label>
                         <select id="etage" name="etage" required>
                             <option value="" disabled selected>Sélectionnez l'étage</option>
                             <!-- Llenado fijo por JS -->
@@ -103,7 +103,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="categorie"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">local_offer</span> Catégorie</label>
+                        <label for="categorie"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">local_offer</span> Catégorie</label>
                         <select id="categorie" name="categorie" required>
                             <option value="">Sélectionnez une catégorie</option>
                             <!-- Llenado por Google Sheets -->
@@ -111,7 +111,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="description"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">lightbulb</span> Description</label>
+                        <label for="description"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">lightbulb</span> Description</label>
                         <select id="description" name="description" required>
                             <option value="" disabled selected>Sélectionnez une description</option>
                             <!-- Llenado por Google Sheets -->
@@ -119,30 +119,30 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="quantite"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">tag</span> Quantité</label>
+                        <label for="quantite"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">tag</span> Quantité</label>
                         <div class="stepper-control">
                             <button type="button" class="stepper-btn" id="stepper-minus" aria-label="Diminuer la quantité"><span
-                                    class="material-symbols-rounded">remove</span></button>
+                                    aria-hidden="true" class="material-symbols-rounded">remove</span></button>
                             <input type="number" id="quantite" name="quantite" min="1" value="1" required>
                             <button type="button" class="stepper-btn" id="stepper-plus" aria-label="Augmenter la quantité"><span
-                                    class="material-symbols-rounded">add</span></button>
+                                    aria-hidden="true" class="material-symbols-rounded">add</span></button>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label for="id_item"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">qr_code_scanner</span> Id</label>
+                        <label for="id_item"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">qr_code_scanner</span> Id</label>
                         <input type="text" id="id_item" name="id_item" readonly
                             placeholder="Sera rempli automatiquement en sélectionnant la description">
                     </div>
 
                     <div class="form-group">
-                        <label for="note"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">comment</span> Note (optionnel)</label>
+                        <label for="note"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">comment</span> Note (optionnel)</label>
                         <input type="text" id="note" name="note" placeholder="Ajouter une note ou précision">
                     </div>
 
                     <div class="form-actions">
                         <button type="submit" class="btn-primary">
-                            <span class="material-symbols-rounded">check</span> Enregistrer
+                            <span aria-hidden="true" class="material-symbols-rounded">check</span> Enregistrer
                         </button>
                     </div>
                 </form>
@@ -152,7 +152,7 @@
         <!-- VIEW: ESTADISTICAS -->
         <section id="view-stats" class="view">
             <div class="card" style="padding: 1.25rem;">
-                <h2 style="margin-bottom: 1.25rem;"><span class="material-symbols-rounded">pie_chart</span> Statistiques</h2>
+                <h2 style="margin-bottom: 1.25rem;"><span aria-hidden="true" class="material-symbols-rounded">pie_chart</span> Statistiques</h2>
                 <p id="stats-data-notice" class="stats-data-notice hidden-field"></p>
                 <div class="stats-grid">
                     <div class="stat-box">
@@ -161,7 +161,7 @@
                                 <span>Total Ampoules</span>
                             </div>
                             <div class="stat-icon-wrapper">
-                                <span class="material-symbols-rounded">lightbulb</span>
+                                <span aria-hidden="true" class="material-symbols-rounded">lightbulb</span>
                             </div>
                         </div>
                         <span id="stat-total" class="stat-value">0</span>
@@ -176,7 +176,7 @@
                                 <span>Coût Total</span>
                             </div>
                             <div class="stat-icon-wrapper">
-                                <span class="material-symbols-rounded">payments</span>
+                                <span aria-hidden="true" class="material-symbols-rounded">payments</span>
                             </div>
                         </div>
                         <span id="stat-price" class="stat-value">0,00 $</span>
@@ -191,7 +191,7 @@
                                 <span>Coût Moyen / Unité</span>
                             </div>
                             <div class="stat-icon-wrapper">
-                                <span class="material-symbols-rounded">price_change</span>
+                                <span aria-hidden="true" class="material-symbols-rounded">price_change</span>
                             </div>
                         </div>
                         <span id="stat-unit-avg" class="stat-value">0,00 $</span>
@@ -206,7 +206,7 @@
                                 <span>Moyenne mensuelle</span>
                             </div>
                             <div class="stat-icon-wrapper">
-                                <span class="material-symbols-rounded">analytics</span>
+                                <span aria-hidden="true" class="material-symbols-rounded">analytics</span>
                             </div>
                         </div>
                         <span id="stat-avg" class="stat-value">0</span>
@@ -221,12 +221,12 @@
                                 <span>Étage Critique</span>
                             </div>
                             <div class="stat-icon-wrapper">
-                                <span class="material-symbols-rounded">domain</span>
+                                <span aria-hidden="true" class="material-symbols-rounded">domain</span>
                             </div>
                         </div>
                         <span id="stat-top-etage" class="stat-value">-</span>
                         <div id="stat-trend-etage" class="stat-trend neutral">
-                            <span>Consommation máx.</span>
+                            <span>Consommation max.</span>
                         </div>
                     </div>
                     
@@ -236,7 +236,7 @@
                                 <span>Modèle Dominant</span>
                             </div>
                             <div class="stat-icon-wrapper">
-                                <span class="material-symbols-rounded">star</span>
+                                <span aria-hidden="true" class="material-symbols-rounded">star</span>
                             </div>
                         </div>
                         <span id="stat-top-product" class="stat-value">-</span>
@@ -248,48 +248,48 @@
             </div>
 
             <div class="card">
-                <h3 style="margin-top: 0;"><span class="material-symbols-rounded" style="color: var(--primary);">filter_alt</span> Filtres</h3>
+                <h3 style="margin-top: 0;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary);">filter_alt</span> Filtres</h3>
                 <div style="margin-bottom: 1.25rem;">
                     <div
                         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem;">
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="filter-month"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">calendar_today</span> Période</label>
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">calendar_today</span> Période</label>
                             <select id="filter-month" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
                                 <option value="all">Toutes les périodes</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="filter-etage"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">domain</span> Étage / Niveau</label>
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">domain</span> Étage / Niveau</label>
                             <select id="filter-etage" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
                                 <option value="all">Tous les étages</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="filter-locataire"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">apartment</span> Locataire / Zone</label>
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">apartment</span> Locataire / Zone</label>
                             <select id="filter-locataire" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
                                 <option value="all">Tous les locataires</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="filter-tache"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">checklist</span> Type d'intervention</label>
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">checklist</span> Type d'intervention</label>
                             <select id="filter-tache" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
                                 <option value="all">Toutes les interventions</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="filter-categorie"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">local_offer</span> Catégorie de matériel</label>
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">local_offer</span> Catégorie de matériel</label>
                             <select id="filter-categorie" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
                                 <option value="all">Toutes les catégories</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="filter-description"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">lightbulb</span> Modèle / Spécification</label>
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">lightbulb</span> Modèle / Spécification</label>
                             <select id="filter-description" style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
                                 <option value="all">Toutes les références</option>
                             </select>
@@ -297,7 +297,7 @@
                     </div>
                     <button id="clear-filters-btn" class="btn-secondary"
                         style="width: 100%; font-size: 0.85rem; padding: 0.4rem 0.75rem;">
-                        <span class="material-symbols-rounded">restart_alt</span> Réinitialiser les filtres
+                        <span aria-hidden="true" class="material-symbols-rounded">restart_alt</span> Réinitialiser les filtres
                     </button>
                 </div>
             </div>
@@ -306,77 +306,77 @@
                 <!-- BLOC 1: VUE GLOBALE & TENDANCES TEMPORELLES -->
                 <div class="stats-block-header">
                     <span class="block-badge">1</span>
-                    <h3><span class="material-symbols-rounded">trending_up</span> Vue Globale & Tendances Temporelles</h3>
+                    <h3><span aria-hidden="true" class="material-symbols-rounded">trending_up</span> Vue Globale & Tendances Temporelles</h3>
                     <span class="block-subtitle">Évolution des volumes et coûts</span>
                 </div>
 
                 <div class="card chart-card full-width-card">
                     <h3>Volume des remplacements par mois</h3>
                     <div class="chart-container">
-                        <canvas id="monthlyBulbsChart"></canvas>
+                        <canvas id="monthlyBulbsChart" role="img" aria-label="Graphique : Volume des remplacements par mois"></canvas>
                     </div>
                 </div>
 
                 <div class="card chart-card full-width-card">
                     <h3>Évolution des dépenses mensuelles ($)</h3>
                     <div class="chart-container">
-                        <canvas id="monthlyCostChart"></canvas>
+                        <canvas id="monthlyCostChart" role="img" aria-label="Graphique : Évolution des dépenses mensuelles"></canvas>
                     </div>
                 </div>
 
                 <div class="card chart-card full-width-card">
                     <h3>Évolution mensuelle par type de tâche</h3>
                     <div class="chart-container">
-                        <canvas id="taskTypeEvolutionChart"></canvas>
+                        <canvas id="taskTypeEvolutionChart" role="img" aria-label="Graphique : Évolution mensuelle par type de tâche"></canvas>
                     </div>
                 </div>
 
                 <!-- BLOC 2: ANALYSE SPATIALE & IMPUTABILITÉ -->
                 <div class="stats-block-header">
                     <span class="block-badge">2</span>
-                    <h3><span class="material-symbols-rounded">share_location</span> Analyse Spatiale & Imputabilité</h3>
+                    <h3><span aria-hidden="true" class="material-symbols-rounded">share_location</span> Analyse Spatiale & Imputabilité</h3>
                     <span class="block-subtitle">Répartition par tâche, catégorie, étage et locataire</span>
                 </div>
 
                 <div class="card chart-card">
                     <h3>Distribution par type d'intervention</h3>
                     <div class="chart-container">
-                        <canvas id="taskTypeChart"></canvas>
+                        <canvas id="taskTypeChart" role="img" aria-label="Graphique : Distribution par type d'intervention"></canvas>
                     </div>
                 </div>
 
                 <div class="card chart-card">
                     <h3>Consommation par catégorie de matériel</h3>
                     <div class="chart-container">
-                        <canvas id="categoryChart"></canvas>
+                        <canvas id="categoryChart" role="img" aria-label="Graphique : Consommation par catégorie de matériel"></canvas>
                     </div>
                 </div>
 
                 <div class="card chart-card">
                     <h3>Top 5 Étages (plus forte consommation)</h3>
                     <div class="chart-container">
-                        <canvas id="topEtagesChart"></canvas>
+                        <canvas id="topEtagesChart" role="img" aria-label="Graphique : Cinq étages avec la plus forte consommation"></canvas>
                     </div>
                 </div>
 
                 <div class="card chart-card">
                     <h3>Ventilation des remplacements par Locataire</h3>
                     <div class="chart-container">
-                        <canvas id="locataireChart"></canvas>
+                        <canvas id="locataireChart" role="img" aria-label="Graphique : Remplacements par locataire"></canvas>
                     </div>
                 </div>
 
                 <!-- BLOC 3: APPROVISIONNEMENT & DÉTAIL MATÉRIEL -->
                 <div class="stats-block-header">
                     <span class="block-badge">3</span>
-                    <h3><span class="material-symbols-rounded">inventory</span> Approvisionnement & Détail Matériel</h3>
+                    <h3><span aria-hidden="true" class="material-symbols-rounded">inventory</span> Approvisionnement & Détail Matériel</h3>
                     <span class="block-subtitle">Références critiques et inventaire consommé</span>
                 </div>
 
                 <div class="card chart-card full-width-card">
                     <h3>Top 5 des références les plus sollicitées</h3>
                     <div class="chart-container">
-                        <canvas id="topProductsChart"></canvas>
+                        <canvas id="topProductsChart" role="img" aria-label="Graphique : Cinq références les plus sollicitées"></canvas>
                     </div>
                 </div>
 
@@ -390,12 +390,12 @@
                         </div>
                         <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                             <div class="search-input-container" style="min-width: 170px; height: 34px;">
-                                <span class="material-symbols-rounded search-icon" style="font-size: 0.8rem;">search</span>
-                                <input type="text" id="search-stats-table" placeholder="Filtrer description..." style="font-size: 0.85rem; padding-left: 2rem; height: 34px;">
+                                <span aria-hidden="true" class="material-symbols-rounded search-icon" style="font-size: 0.8rem;">search</span>
+                                <input type="text" id="search-stats-table" aria-label="Filtrer par description" placeholder="Filtrer description..." style="font-size: 0.85rem; padding-left: 2rem; height: 34px;">
                             </div>
-                            <button id="btn-toggle-stats-table" type="button" style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s;">
+                            <button id="btn-toggle-stats-table" type="button" aria-expanded="false" aria-controls="stats-table-body-container" style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s;">
                                 <span id="text-toggle-stats-table">Afficher</span>
-                                <span id="icon-toggle-stats-table" class="material-symbols-rounded" style="transition: transform 0.3s ease; font-size: 1.1rem; color: var(--primary);">expand_more</span>
+                                <span id="icon-toggle-stats-table" aria-hidden="true" class="material-symbols-rounded" style="transition: transform 0.3s ease; font-size: 1.1rem; color: var(--primary);">expand_more</span>
                             </button>
                         </div>
                     </div>
@@ -422,30 +422,30 @@
         <!-- VIEW: INVENTAIRE -->
         <section id="view-inventaire" class="view">
             <div class="card">
-                <h2><span class="material-symbols-rounded">inventory_2</span> Inventaire</h2>
+                <h2><span aria-hidden="true" class="material-symbols-rounded">inventory_2</span> Inventaire</h2>
                 <div class="inventory-controls"
                     style="margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
                     <div class="form-group" style="margin-bottom: 0;">
                         <div class="search-input-container">
-                            <span class="material-symbols-rounded search-icon">search</span>
-                            <input type="text" id="search-inv" placeholder="Rechercher par ID ou Description...">
+                            <span aria-hidden="true" class="material-symbols-rounded search-icon">search</span>
+                            <input type="text" id="search-inv" aria-label="Rechercher dans l'inventaire" placeholder="Rechercher par ID ou Description...">
                         </div>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label for="filter-inv-categorie"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">local_offer</span> Catégorie</label>
+                        <label for="filter-inv-categorie"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">local_offer</span> Catégorie</label>
                         <select id="filter-inv-categorie">
                             <option value="all">Toutes les catégories</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label for="filter-inv-description"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">lightbulb</span> Description</label>
+                        <label for="filter-inv-description"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">lightbulb</span> Description</label>
                         <select id="filter-inv-description">
                             <option value="all">Toutes les descriptions</option>
                         </select>
                     </div>
 
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label for="filter-inv-autonomie"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">speed</span> État / Autonomie</label>
+                        <label for="filter-inv-autonomie"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">speed</span> État / Autonomie</label>
                         <select id="filter-inv-autonomie">
                             <option value="all">Tous les états</option>
                             <option value="epuise">🔴 Épuisé (Stock 0)</option>
@@ -456,7 +456,7 @@
                     </div>
                     <button id="clear-inv-filters-btn" class="btn-secondary"
                         style="width: 100%; margin-top: 0.5rem;">
-                        <span class="material-symbols-rounded">restart_alt</span> Réinitialiser les filtres
+                        <span aria-hidden="true" class="material-symbols-rounded">restart_alt</span> Réinitialiser les filtres
                     </button>
                 </div>
                 <div id="inventory-container" class="inventory-grid">
@@ -468,7 +468,7 @@
         <!-- VIEW: HISTORIQUE -->
         <section id="view-historique" class="view">
             <div class="card">
-                <h2><span class="material-symbols-rounded">list</span> Historique des Remplacements</h2>
+                <h2><span aria-hidden="true" class="material-symbols-rounded">list</span> Historique des Remplacements</h2>
                 <p class="help-text">Visualisez et recherchez tous les remplacements enregistrés.</p>
 
                 <!-- Filtres Historique -->
@@ -477,7 +477,7 @@
                         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem;">
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="filter-history-month"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">calendar_today</span> Mois / Année</label>
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">calendar_today</span> Mois / Année</label>
                             <select id="filter-history-month"
                                 style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
                                 <option value="all">Tous les mois</option>
@@ -485,7 +485,7 @@
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="filter-history-etage"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">domain</span> Étage</label>
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">domain</span> Étage</label>
                             <select id="filter-history-etage"
                                 style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
                                 <option value="all">Tous les étages</option>
@@ -493,7 +493,7 @@
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="filter-history-locataire"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">apartment</span> Locataire</label>
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">apartment</span> Locataire</label>
                             <select id="filter-history-locataire"
                                 style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
                                 <option value="all">Tous les locataires</option>
@@ -501,7 +501,7 @@
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="filter-history-tache"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">checklist</span> Type de tâche</label>
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">checklist</span> Type de tâche</label>
                             <select id="filter-history-tache"
                                 style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
                                 <option value="all">Toutes les tâches</option>
@@ -509,7 +509,7 @@
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="filter-history-categorie"
-                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">local_offer</span> Catégorie</label>
+                                style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600;"><span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); margin-right: 0.25rem;">local_offer</span> Catégorie</label>
                             <select id="filter-history-categorie"
                                 style="font-size: 0.85rem; padding: 0.4rem; height: 36px;">
                                 <option value="all">Toutes les catégories</option>
@@ -518,14 +518,14 @@
                     </div>
                     <button id="clear-history-filters-btn" class="btn-secondary"
                         style="width: 100%; font-size: 0.85rem; padding: 0.4rem 0.75rem;">
-                        <span class="material-symbols-rounded">restart_alt</span> Réinitialiser les filtres
+                        <span aria-hidden="true" class="material-symbols-rounded">restart_alt</span> Réinitialiser les filtres
                     </button>
                 </div>
 
                 <div class="form-group" style="margin-bottom: 1.25rem;">
                     <div class="search-input-container">
-                        <span class="material-symbols-rounded search-icon">search</span>
-                        <input type="text" id="search-history"
+                        <span aria-hidden="true" class="material-symbols-rounded search-icon">search</span>
+                        <input type="text" id="search-history" aria-label="Rechercher dans l'historique"
                             placeholder="Rechercher par description, étage, tâche, note...">
                     </div>
                 </div>
@@ -542,46 +542,46 @@
         <!-- VIEW: NOTES -->
         <section id="view-notes" class="view">
             <div class="card" style="border-top: 4px solid var(--primary);">
-                <h2><span class="material-symbols-rounded">sticky_note_2</span> Nouvelles Notes</h2>
+                <h2><span aria-hidden="true" class="material-symbols-rounded">sticky_note_2</span> Nouvelles Notes</h2>
 
                 <div class="form-group">
-                    <label for="note-text"><span class="material-symbols-rounded">edit</span> Rédiger une note</label>
+                    <label for="note-text"><span aria-hidden="true" class="material-symbols-rounded">edit</span> Rédiger une note</label>
                     <textarea id="note-text" rows="4" placeholder="Tapez votre rappel ou note ici..."
                         style="width: 100%; border: 2px solid transparent; border-radius: var(--radius-sm); font-size: 1.05rem; padding: 0.875rem 1rem; background-color: var(--input-bg); color: var(--text-primary); font-family: inherit; resize: vertical; transition: all var(--transition-snappy);"></textarea>
                 </div>
 
                 <div class="form-group" style="margin-top: 1rem;">
-                    <label style="margin-bottom: 0.5rem;"><span class="material-symbols-rounded">palette</span> Couleur de la note</label>
-                    <div style="display: flex; gap: 1rem; align-items: center;">
+                    <label id="note-color-label" style="margin-bottom: 0.5rem;"><span aria-hidden="true" class="material-symbols-rounded">palette</span> Couleur de la note</label>
+                    <div role="radiogroup" aria-labelledby="note-color-label" style="display: flex; gap: 1rem; align-items: center;">
                         <label class="color-radio">
-                            <input type="radio" name="note_color" value="note-blue" checked>
+                            <input type="radio" name="note_color" value="note-blue" aria-label="Bleu" checked>
                             <span class="color-swatch" style="background-color: var(--primary);"></span>
                         </label>
                         <label class="color-radio">
-                            <input type="radio" name="note_color" value="note-yellow">
+                            <input type="radio" name="note_color" value="note-yellow" aria-label="Jaune">
                             <span class="color-swatch" style="background-color: #f59e0b;"></span>
                         </label>
                         <label class="color-radio">
-                            <input type="radio" name="note_color" value="note-red">
+                            <input type="radio" name="note_color" value="note-red" aria-label="Rouge">
                             <span class="color-swatch" style="background-color: var(--error);"></span>
                         </label>
                         <label class="color-radio">
-                            <input type="radio" name="note_color" value="note-green">
+                            <input type="radio" name="note_color" value="note-green" aria-label="Vert">
                             <span class="color-swatch" style="background-color: var(--success);"></span>
                         </label>
                     </div>
                 </div>
                 <button id="save-note-btn" class="btn-primary">
-                    <span class="material-symbols-rounded">save</span> Enregistrer la Note
+                    <span aria-hidden="true" class="material-symbols-rounded">save</span> Enregistrer la Note
                 </button>
             </div>
 
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h2 style="margin: 0;"><span class="material-symbols-rounded">checklist</span> Mes Notes</h2>
+                    <h2 style="margin: 0;"><span aria-hidden="true" class="material-symbols-rounded">checklist</span> Mes Notes</h2>
                     <button id="clear-completed-notes-btn" class="btn-secondary"
                         style="width: auto; padding: 0.25rem 0.75rem; min-height: 0; font-size: 0.85rem; margin: 0; border-color: var(--text-secondary); color: var(--text-secondary);">
-                        <span class="material-symbols-rounded">mop</span> Nettoyer
+                        <span aria-hidden="true" class="material-symbols-rounded">mop</span> Nettoyer
                     </button>
                 </div>
                 <div id="notes-list-container">
@@ -594,7 +594,7 @@
         <!-- VIEW: CONFIGURACION -->
         <section id="view-config" class="view">
             <div class="card">
-                <h2><span class="material-symbols-rounded">settings</span> Configuration</h2>
+                <h2><span aria-hidden="true" class="material-symbols-rounded">settings</span> Configuration</h2>
                 <p class="help-text">Pour connecter l'application avec votre Google Sheet, collez ici l'URL de la Web
                     App (Google Apps Script).</p>
 
@@ -609,7 +609,7 @@
                 </div>
 
                 <button id="save-config-btn" class="btn-primary">
-                    <span class="material-symbols-rounded">save</span> Enregistrer
+                    <span aria-hidden="true" class="material-symbols-rounded">save</span> Enregistrer
                 </button>
 
                 <hr class="divider">
@@ -628,22 +628,21 @@
                 <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 0.5rem;">
                     <button id="sync-btn" class="btn-secondary"
                         style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.25rem;">
-                        <span><span class="material-symbols-rounded" style="width: 24px;">sync</span> Synchroniser les données</span>
+                        <span><span aria-hidden="true" class="material-symbols-rounded" style="width: 24px;">sync</span> Synchroniser les données</span>
                         <span id="sync-badge" class="badge hidden"
                             style="position: static; transform: none; display: inline-flex;">0</span>
                     </button>
 
-                    <div class="btn-secondary"
-                        style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.25rem; cursor: pointer;"
-                        onclick="document.getElementById('theme-toggle').click()">
-                        <span><span class="material-symbols-rounded" style="width: 24px;">palette</span> Thème Visuel</span>
-                        <span class="material-symbols-rounded" id="theme-toggle"
+                    <button type="button" id="theme-btn" class="btn-secondary"
+                        style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.25rem; cursor: pointer;">
+                        <span><span aria-hidden="true" class="material-symbols-rounded" style="width: 24px;">palette</span> Thème Visuel</span>
+                        <span aria-hidden="true" class="material-symbols-rounded" id="theme-toggle"
                             style="font-size: 1.3rem; pointer-events: none;">lightbulb</span>
-                    </div>
+                    </button>
 
                     <button id="reload-app-btn" class="btn-secondary"
                         style="width: 100%; display: flex; justify-content: flex-start; align-items: center; padding: 0.75rem 1.25rem; border-color: rgba(239, 68, 68, 0.4); color: var(--error);">
-                        <span class="material-symbols-rounded" style="width: 24px;">cached</span> Vider le cache & Recharger
+                        <span aria-hidden="true" class="material-symbols-rounded" style="width: 24px;">cached</span> Vider le cache & Recharger
                     </button>
                 </div>
             </div>
@@ -652,40 +651,39 @@
     </main>
 
     <!-- Bottom Navigation -->
-    <nav class="bottom-nav">
-        <a href="#" class="nav-item active" data-target="view-registro">
-            <span class="material-symbols-rounded">add_circle</span>
+    <nav class="bottom-nav" aria-label="Navigation principale">
+        <a href="#" class="nav-item active" aria-current="page" data-target="view-registro">
+            <span aria-hidden="true" class="material-symbols-rounded">add_circle</span>
             <span>Saisie</span>
         </a>
         <a href="#" class="nav-item" data-target="view-historique">
-            <span class="material-symbols-rounded">list</span>
+            <span aria-hidden="true" class="material-symbols-rounded">list</span>
             <span>Historique</span>
         </a>
         <a href="#" class="nav-item" data-target="view-stats">
-            <span class="material-symbols-rounded">pie_chart</span>
+            <span aria-hidden="true" class="material-symbols-rounded">pie_chart</span>
             <span>Stats</span>
         </a>
         <a href="#" class="nav-item" data-target="view-inventaire" style="position: relative;">
-            <span class="material-symbols-rounded">inventory_2</span>
+            <span aria-hidden="true" class="material-symbols-rounded">inventory_2</span>
             <span>Inventaire</span>
             <span id="nav-badge-inventaire" class="nav-badge hidden">0</span>
         </a>
         <a href="#" class="nav-item" data-target="view-notes">
-            <span class="material-symbols-rounded">sticky_note_2</span>
+            <span aria-hidden="true" class="material-symbols-rounded">sticky_note_2</span>
             <span>Notes</span>
         </a>
     </nav>
 
     <!-- Overlay Loader -->
-    <div id="loader" class="loader-overlay hidden">
+    <div id="loader" class="loader-overlay hidden" role="status" aria-live="polite">
         <div class="spinner"></div>
         <p id="loader-text">Chargement...</p>
     </div>
 
     <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.6.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script type="module" src="js/app.js"></script>
     <script>
         // [FIX G-4] El SW se registra una sola vez y no se destruye en cada carga de página

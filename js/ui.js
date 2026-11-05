@@ -75,6 +75,22 @@ const HISTORY_PAGE_SIZE = 200;
 let historyVisibleCount = HISTORY_PAGE_SIZE;
 let historyFilterKey = "";
 
+// Cambia de vista y marca la pestaña activa, también para lectores de pantalla
+export function setActiveView(targetId) {
+    document.querySelectorAll('.nav-item').forEach(item => {
+        const isActive = item.getAttribute('data-target') === targetId;
+        item.classList.toggle('active', isActive);
+        if (isActive) {
+            item.setAttribute('aria-current', 'page');
+        } else {
+            item.removeAttribute('aria-current');
+        }
+    });
+    document.querySelectorAll('.view').forEach(view => {
+        view.classList.toggle('active', view.id === targetId);
+    });
+}
+
 export function setConnectionStatus(text, isOk) {
     if (!elements.connStatus) return;
     elements.connStatus.textContent = text;
@@ -95,8 +111,9 @@ export function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.id = 'custom-toast';
     toast.className = 'toast-container';
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
     toast.innerHTML = `
-        <span class="material-symbols-rounded toast-icon ${type}">${iconMap[type] || iconMap.info}</span>
+        <span aria-hidden="true" class="material-symbols-rounded toast-icon ${type}">${iconMap[type] || iconMap.info}</span>
         <span style="font-weight: 500; font-size: 0.95rem;">${escapeHtml(message)}</span>
     `;
     
@@ -117,16 +134,19 @@ export function showConfirm(message) {
         const overlay = document.createElement('div');
         overlay.id = 'custom-confirm';
         overlay.className = 'confirm-overlay';
-        
+
+        // Se vuelve al control de origen al cerrar; el foco inicial va a "Annuler", la opción segura
+        const previouslyFocused = document.activeElement;
+
         overlay.innerHTML = `
-            <div class="confirm-box">
+            <div class="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="custom-confirm-text">
                 <div class="confirm-content">
-                    <span class="material-symbols-rounded confirm-icon">warning</span>
-                    <p>${escapeHtml(message)}</p>
+                    <span aria-hidden="true" class="material-symbols-rounded confirm-icon">warning</span>
+                    <p id="custom-confirm-text">${escapeHtml(message)}</p>
                 </div>
                 <div class="confirm-actions">
-                    <button class="btn-cancel">Annuler</button>
-                    <button class="btn-confirm">Confirmer</button>
+                    <button type="button" class="btn-cancel">Annuler</button>
+                    <button type="button" class="btn-confirm">Confirmer</button>
                 </div>
             </div>
         `;
@@ -135,16 +155,31 @@ export function showConfirm(message) {
         
         setTimeout(() => overlay.classList.add('show'), 10);
         
+        const cancelButton = overlay.querySelector('.btn-cancel');
+        const confirmButton = overlay.querySelector('.btn-confirm');
+
         const close = (result) => {
             overlay.classList.remove('show');
+            if (previouslyFocused && previouslyFocused.isConnected) previouslyFocused.focus();
             setTimeout(() => {
                 overlay.remove();
                 resolve(result);
             }, 300);
         };
-        
-        overlay.querySelector('.btn-cancel').addEventListener('click', () => close(false));
-        overlay.querySelector('.btn-confirm').addEventListener('click', () => close(true));
+
+        cancelButton.addEventListener('click', () => close(false));
+        confirmButton.addEventListener('click', () => close(true));
+
+        // Teclado: Escape cancela y Tab se queda dentro del diálogo
+        overlay.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                close(false);
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                (document.activeElement === cancelButton ? confirmButton : cancelButton).focus();
+            }
+        });
+        cancelButton.focus();
     });
 }
 
@@ -324,7 +359,7 @@ export function resetFormAndRefresh() {
     if (elements.form) {
         const submitBtn = elements.form.querySelector('button[type="submit"]');
         if (submitBtn) {
-            submitBtn.innerHTML = '<span class="material-symbols-rounded">save</span> Enregistrer';
+            submitBtn.innerHTML = '<span aria-hidden="true" class="material-symbols-rounded">save</span> Enregistrer';
         }
         const cancelBtn = document.getElementById('cancel-edit-btn');
         if (cancelBtn) {
@@ -399,7 +434,7 @@ export function renderHistory() {
     if (history.length === 0) {
         elements.historyContainer.innerHTML = `
             <div class="empty-state-container">
-                <span class="material-symbols-rounded empty-icon">search</span>
+                <span aria-hidden="true" class="material-symbols-rounded empty-icon">search</span>
                 <p class="empty-text">Aucun enregistrement correspondant.</p>
             </div>
         `;
@@ -448,10 +483,10 @@ export function renderHistory() {
             <div class="pro-history-card history-item-animate" style="animation-delay: ${Math.min(index * 0.05, 0.5)}s; border-left: 4px solid ${catColor}; position: relative;">
                 <div class="pro-card-header" style="display: flex; flex-direction: column; gap: 0.5rem; padding-right: 2.5rem;">
                     <div style="display: flex; align-items: flex-start;">
-                        <h4 class="pro-desc" style="margin: 0; line-height: 1.3; display: flex; align-items: center; gap: 0.35rem;">
-                            <span class="material-symbols-rounded" style="color: var(--primary); font-size: 1.15rem; flex-shrink: 0;">lightbulb</span>
+                        <h3 class="pro-desc" style="margin: 0; line-height: 1.3; display: flex; align-items: center; gap: 0.35rem;">
+                            <span aria-hidden="true" class="material-symbols-rounded" style="color: var(--primary); font-size: 1.15rem; flex-shrink: 0;">lightbulb</span>
                             ${escapeHtml(displayDesc)}
-                        </h4>
+                        </h3>
                     </div>
                     
                     <div class="pro-qty-badge" style="position: absolute; top: 1rem; right: 1rem; width: 34px; height: 34px; box-shadow: none;">
@@ -460,27 +495,27 @@ export function renderHistory() {
                     
                     <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500; display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap;">
                         <span style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                            <span class="material-symbols-rounded" style="font-size: 1rem; color: var(--primary);">build</span> ${escapeHtml(r.tache || 'N/A')}
+                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem; color: var(--primary);">build</span> ${escapeHtml(r.tache || 'N/A')}
                         </span>
                         <span style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                            <span class="material-symbols-rounded" style="font-size: 1rem; color: var(--primary);">apartment</span> ${escapeHtml(r.locataire || '-')}
+                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem; color: var(--primary);">apartment</span> ${escapeHtml(r.locataire || '-')}
                         </span>
                     </div>
                     
                     <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem; flex-wrap: wrap;">
                         <span class="pro-id-badge" style="height: 28px; padding: 0 0.65rem; border-radius: 14px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; gap: 0.3rem;">
-                            <span class="material-symbols-rounded" style="font-size: 0.95rem;">qr_code_scanner</span> ${escapeHtml(r.id_item || '-')}
+                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 0.95rem;">qr_code_scanner</span> ${escapeHtml(r.id_item || '-')}
                         </span>
                         
-                        <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; ${r.isPending ? 'background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2);' : 'background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2);'}" title="${r.isPending ? 'En attente de synchronisation' : 'Synchronisé'}">
-                            <span class="material-symbols-rounded" style="font-size: 1rem;">${r.isPending ? 'cloud_upload' : 'cloud_done'}</span>
+                        <div role="img" aria-label="${r.isPending ? 'En attente de synchronisation' : 'Synchronisé'}" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; ${r.isPending ? 'background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2);' : 'background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2);'}" title="${r.isPending ? 'En attente de synchronisation' : 'Synchronisé'}">
+                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem;">${r.isPending ? 'cloud_upload' : 'cloud_done'}</span>
                         </div>
                         ${r.uuid ? `
-                        <button class="icon-btn edit-btn" data-uuid="${escapeHtml(r.uuid)}" style="width: 28px; height: 28px; border-radius: 50%; background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); color: var(--primary); padding: 0; display: flex; align-items: center; justify-content: center;" title="Modifier">
-                            <span class="material-symbols-rounded" style="font-size: 1rem;">edit</span>
+                        <button class="icon-btn edit-btn" data-uuid="${escapeHtml(r.uuid)}" style="width: 28px; height: 28px; border-radius: 50%; background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); color: var(--primary); padding: 0; display: flex; align-items: center; justify-content: center;" title="Modifier" aria-label="Modifier cet enregistrement">
+                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem;">edit</span>
                         </button>
-                        <button class="icon-btn delete-btn" data-uuid="${escapeHtml(r.uuid)}" style="width: 28px; height: 28px; border-radius: 50%; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: var(--error); padding: 0; display: flex; align-items: center; justify-content: center;" title="Supprimer">
-                            <span class="material-symbols-rounded" style="font-size: 1rem;">delete</span>
+                        <button class="icon-btn delete-btn" data-uuid="${escapeHtml(r.uuid)}" style="width: 28px; height: 28px; border-radius: 50%; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: var(--error); padding: 0; display: flex; align-items: center; justify-content: center;" title="Supprimer" aria-label="Supprimer cet enregistrement">
+                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1rem;">delete</span>
                         </button>
                         ` : ''}
                     </div>
@@ -489,28 +524,28 @@ export function renderHistory() {
                 <div class="pro-card-body">
                     <div class="pro-meta-grid">
                         <div class="pro-meta-item">
-                            <span class="material-symbols-rounded">domain</span>
+                            <span aria-hidden="true" class="material-symbols-rounded">domain</span>
                             <div>
                                 <span class="meta-label">Étage</span>
                                 <span class="meta-value">${r.etage !== undefined && r.etage !== null && r.etage !== "" ? escapeHtml(r.etage) : '-'}</span>
                             </div>
                         </div>
                         <div class="pro-meta-item">
-                            <span class="material-symbols-rounded">tag</span>
+                            <span aria-hidden="true" class="material-symbols-rounded">tag</span>
                             <div>
                                 <span class="meta-label">Num. Tâche</span>
                                 <span class="meta-value">${escapeHtml(detailsVal)}</span>
                             </div>
                         </div>
                         <div class="pro-meta-item">
-                            <span class="material-symbols-rounded">local_offer</span>
+                            <span aria-hidden="true" class="material-symbols-rounded">local_offer</span>
                             <div>
                                 <span class="meta-label">Catégorie</span>
                                 <span class="meta-value">${escapeHtml(r.categorie || '-')}</span>
                             </div>
                         </div>
                         <div class="pro-meta-item">
-                            <span class="material-symbols-rounded">calendar_today</span>
+                            <span aria-hidden="true" class="material-symbols-rounded">calendar_today</span>
                             <div>
                                 <span class="meta-label">Date</span>
                                 <span class="meta-value">${escapeHtml(dateStr)}</span>
@@ -529,7 +564,7 @@ export function renderHistory() {
         `;
     }).join('') + (remainingCount > 0 ? `
         <button type="button" id="history-show-more" class="btn-secondary" style="width: 100%;">
-            <span class="material-symbols-rounded">expand_more</span> Afficher plus (${remainingCount} restants)
+            <span aria-hidden="true" class="material-symbols-rounded">expand_more</span> Afficher plus (${remainingCount} restants)
         </button>
     ` : '');
 
@@ -563,13 +598,7 @@ export function renderHistory() {
             if (record) {
                 store.setEditingRecordUuid(uuid);
                 // Switch view to saisie (registro)
-                document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-                const saisieBtn = document.querySelector('.nav-item[data-target="view-registro"]');
-                if (saisieBtn) saisieBtn.classList.add('active');
-                
-                document.querySelectorAll('.view').forEach(sec => sec.classList.remove('active'));
-                const saisieView = document.getElementById('view-registro');
-                if (saisieView) saisieView.classList.add('active');
+                setActiveView('view-registro');
                 
                 // Populate form
                 const targetDate = record.fecha || record.date;
@@ -621,7 +650,7 @@ export function renderHistory() {
                 // Change submit button text
                 const submitBtn = elements.form.querySelector('button[type="submit"]');
                 if (submitBtn) {
-                    submitBtn.innerHTML = '<span class="material-symbols-rounded">save</span> Modifier';
+                    submitBtn.innerHTML = '<span aria-hidden="true" class="material-symbols-rounded">save</span> Modifier';
                 }
                 
                 // Show cancel button
@@ -633,17 +662,11 @@ export function renderHistory() {
                     cancelBtn.className = 'btn-secondary';
                     cancelBtn.style.marginTop = '10px';
                     cancelBtn.style.width = '100%';
-                    cancelBtn.innerHTML = '<span class="material-symbols-rounded">close</span> Annuler la modification';
+                    cancelBtn.innerHTML = '<span aria-hidden="true" class="material-symbols-rounded">close</span> Annuler la modification';
                     cancelBtn.addEventListener('click', () => {
                         resetFormAndRefresh();
                         // Volver a historique
-                        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-                        const historyNavBtn = document.querySelector('.nav-item[data-target="view-historique"]');
-                        if (historyNavBtn) historyNavBtn.classList.add('active');
-                        
-                        document.querySelectorAll('.view').forEach(sec => sec.classList.remove('active'));
-                        const historyView = document.getElementById('view-historique');
-                        if (historyView) historyView.classList.add('active');
+                        setActiveView('view-historique');
                     });
                     if (submitBtn && submitBtn.parentNode) {
                         submitBtn.parentNode.insertBefore(cancelBtn, submitBtn.nextSibling);
@@ -679,15 +702,15 @@ export function renderNotes() {
             <div class="card note-item ${escapeHtml(noteColorClass)} ${completedClass}" style="margin-bottom: 0.75rem; padding: 1rem;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="checkbox" class="note-checkbox" data-id="${escapeHtml(note.id)}" ${checkedAttr} style="width: 18px; height: 18px; cursor: pointer;">
-                        <span style="font-size: 0.75rem; color: var(--text-secondary);"><span class="material-symbols-rounded">schedule</span> ${dateStr}</span>
+                        <input type="checkbox" class="note-checkbox" data-id="${escapeHtml(note.id)}" ${checkedAttr} aria-label="Marquer la note comme terminée" style="width: 18px; height: 18px; cursor: pointer;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary);"><span aria-hidden="true" class="material-symbols-rounded">schedule</span> ${dateStr}</span>
                     </div>
                     <div style="display: flex; gap: 0.5rem;">
-                        <button class="icon-btn edit-note-btn" data-id="${escapeHtml(note.id)}" style="width: 28px; height: 28px; background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); color: var(--primary); padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%;" title="Modifier">
-                            <span class="material-symbols-rounded" style="font-size: 0.8rem;">edit</span>
+                        <button class="icon-btn edit-note-btn" data-id="${escapeHtml(note.id)}" style="width: 28px; height: 28px; background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); color: var(--primary); padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%;" title="Modifier" aria-label="Modifier la note">
+                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 0.8rem;">edit</span>
                         </button>
-                        <button class="icon-btn delete-note-btn" data-id="${escapeHtml(note.id)}" style="width: 28px; height: 28px; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: var(--error); padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%;" title="Supprimer">
-                            <span class="material-symbols-rounded" style="font-size: 0.8rem;">delete</span>
+                        <button class="icon-btn delete-note-btn" data-id="${escapeHtml(note.id)}" style="width: 28px; height: 28px; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: var(--error); padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%;" title="Supprimer" aria-label="Supprimer la note">
+                            <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 0.8rem;">delete</span>
                         </button>
                     </div>
                 </div>
@@ -724,7 +747,7 @@ export function renderNotes() {
             if (note && noteInput && saveBtn) {
                 store.setEditingNoteId(id);
                 noteInput.value = note.text;
-                saveBtn.innerHTML = '<span class="material-symbols-rounded">save</span> Modifier la Note';
+                saveBtn.innerHTML = '<span aria-hidden="true" class="material-symbols-rounded">save</span> Modifier la Note';
                 
                 const noteColor = note.color || 'note-blue';
                 const colorRadio = document.querySelector(`input[name="note_color"][value="${noteColor}"]`);
@@ -738,11 +761,11 @@ export function renderNotes() {
                     cancelBtn.className = 'btn-secondary';
                     cancelBtn.style.marginTop = '10px';
                     cancelBtn.style.width = '100%';
-                    cancelBtn.innerHTML = '<span class="material-symbols-rounded">close</span> Annuler la modification';
+                    cancelBtn.innerHTML = '<span aria-hidden="true" class="material-symbols-rounded">close</span> Annuler la modification';
                     cancelBtn.addEventListener('click', () => {
                         store.setEditingNoteId(null);
                         noteInput.value = '';
-                        saveBtn.innerHTML = '<span class="material-symbols-rounded">save</span> Enregistrer la Note';
+                        saveBtn.innerHTML = '<span aria-hidden="true" class="material-symbols-rounded">save</span> Enregistrer la Note';
                         const defaultColor = document.querySelector('input[name="note_color"][value="note-blue"]');
                         if (defaultColor) defaultColor.checked = true;
                         cancelBtn.style.display = 'none';
@@ -892,15 +915,15 @@ export function renderInventory() {
         card.innerHTML = `
             <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                 <div class="inv-title" style="display: flex; align-items: flex-start; margin: 0; max-width: 100%;">
-                    <span class="material-symbols-rounded" style="flex-shrink: 0; color: var(--text-secondary); margin-right: 0.35rem; margin-top: 0.2rem; font-size: 0.95rem;">lightbulb</span>
+                    <span aria-hidden="true" class="material-symbols-rounded" style="flex-shrink: 0; color: var(--text-secondary); margin-right: 0.35rem; margin-top: 0.2rem; font-size: 0.95rem;">lightbulb</span>
                     <span style="line-height: 1.3; flex: 1; min-width: 0; word-break: break-word; overflow-wrap: break-word;">${escapeHtml(item.description || 'Sans description')}</span>
                 </div>
                 
                 <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; max-width: 100%;">
-                    <span class="pro-id-badge" style="height: 24px; padding: 0 0.75rem; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; background: rgba(59, 130, 246, 0.1); color: var(--primary); font-weight: 500; font-size: 0.75rem;"><span class="material-symbols-rounded" style="margin-right: 0.25rem;">sell</span> ${escapeHtml(item.id)}</span>
-                    <span class="pro-id-badge" style="height: 24px; padding: 0 0.75rem; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; background: rgba(107, 114, 128, 0.1); color: var(--text-secondary); font-weight: 500; font-size: 0.75rem;"><span class="material-symbols-rounded" style="margin-right: 0.25rem;">folder_open</span> ${escapeHtml(item.categorie || 'Sans Catégorie')}</span>
-                    <span class="pro-id-badge" style="height: 24px; padding: 0 0.75rem; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; background: rgba(16, 185, 129, 0.1); color: var(--success); font-weight: 500; font-size: 0.75rem;"><span class="material-symbols-rounded" style="margin-right: 0.25rem;">attach_money</span> ${formattedPrix}</span>
-                    <span class="pro-id-badge" style="height: 24px; padding: 0 0.75rem; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; background: ${autonomieBg}; color: ${autonomieColor}; font-weight: 600; font-size: 0.75rem;" title="Autonomie estimée"><span class="material-symbols-rounded" style="margin-right: 0.25rem;">hourglass_bottom</span> ${autonomieText}</span>
+                    <span class="pro-id-badge" style="height: 24px; padding: 0 0.75rem; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; background: rgba(59, 130, 246, 0.1); color: var(--primary); font-weight: 500; font-size: 0.75rem;"><span aria-hidden="true" class="material-symbols-rounded" style="margin-right: 0.25rem;">sell</span> ${escapeHtml(item.id)}</span>
+                    <span class="pro-id-badge" style="height: 24px; padding: 0 0.75rem; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; background: rgba(107, 114, 128, 0.1); color: var(--text-secondary); font-weight: 500; font-size: 0.75rem;"><span aria-hidden="true" class="material-symbols-rounded" style="margin-right: 0.25rem;">folder_open</span> ${escapeHtml(item.categorie || 'Sans Catégorie')}</span>
+                    <span class="pro-id-badge" style="height: 24px; padding: 0 0.75rem; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; background: rgba(16, 185, 129, 0.1); color: var(--success); font-weight: 500; font-size: 0.75rem;"><span aria-hidden="true" class="material-symbols-rounded" style="margin-right: 0.25rem;">attach_money</span> ${formattedPrix}</span>
+                    <span class="pro-id-badge" style="height: 24px; padding: 0 0.75rem; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; background: ${autonomieBg}; color: ${autonomieColor}; font-weight: 600; font-size: 0.75rem;" title="Autonomie estimée"><span aria-hidden="true" class="material-symbols-rounded" style="margin-right: 0.25rem;">hourglass_bottom</span> ${autonomieText}</span>
                 </div>
             </div>
             
@@ -934,7 +957,7 @@ export function renderInventory() {
     if (count === 0) {
         elements.inventoryContainer.innerHTML = `
             <div style="text-align:center; padding: 2rem; color: var(--text-secondary); background: var(--bg-color); border-radius: var(--radius-lg);">
-                <span class="material-symbols-rounded" style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;">inventory_2</span>
+                <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;">inventory_2</span>
                 <p>Aucun article trouvé dans l'inventaire.</p>
             </div>
         `;

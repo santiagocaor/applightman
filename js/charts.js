@@ -388,11 +388,7 @@ export function updateDashboard() {
         const label = chart.data.labels[index];
         const canvasId = chart.canvas.id;
         
-        ui.elements.navItems.forEach(n => n.classList.remove('active'));
-        ui.elements.views.forEach(v => v.classList.remove('active'));
-        const histNav = Array.from(ui.elements.navItems).find(n => n.getAttribute('data-target') === 'view-historique');
-        if (histNav) histNav.classList.add('active');
-        document.getElementById('view-historique').classList.add('active');
+        ui.setActiveView('view-historique');
         
         if (ui.elements.filterHistoryMonth) ui.elements.filterHistoryMonth.value = 'all';
         if (ui.elements.filterHistoryEtage) ui.elements.filterHistoryEtage.value = 'all';
@@ -902,6 +898,8 @@ export function updateStatsTableCollapseUI() {
     const bodyContainer = document.getElementById('stats-table-body-container');
     const icon = document.getElementById('icon-toggle-stats-table');
     const toggleText = document.getElementById('text-toggle-stats-table');
+    const toggleBtn = document.getElementById('btn-toggle-stats-table');
+    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', String(!isStatsTableCollapsed));
 
     if (!bodyContainer) return;
 
@@ -1000,7 +998,7 @@ export function renderStatsTable(dashboardRecords) {
         tableBody.innerHTML = `
             <tr>
                 <td colspan="2" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                    <span class="material-symbols-rounded" style="font-size: 1.8rem; display: block; margin-bottom: 0.5rem; opacity: 0.5;">inventory_2</span>
+                    <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1.8rem; display: block; margin-bottom: 0.5rem; opacity: 0.5;">inventory_2</span>
                     Aucune donnée disponible pour ces filtres.
                 </td>
             </tr>

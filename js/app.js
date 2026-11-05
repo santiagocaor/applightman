@@ -22,9 +22,9 @@ const ThemeManager = {
             }
         });
         
-        const themeToggle = document.getElementById('theme-toggle');
-        if (themeToggle) {
-            themeToggle.addEventListener('click', () => {
+        const themeButton = document.getElementById('theme-btn');
+        if (themeButton) {
+            themeButton.addEventListener('click', () => {
                 const currentTheme = document.documentElement.getAttribute('data-theme');
                 const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
                 
@@ -40,9 +40,12 @@ const ThemeManager = {
     },
     
     updateIcon(isDark) {
+        const themeButton = document.getElementById('theme-btn');
+        if (themeButton) themeButton.setAttribute('aria-pressed', String(isDark));
+
         const themeToggle = document.getElementById('theme-toggle');
         if (!themeToggle) return;
-        
+
         if (isDark) {
             themeToggle.style.color = '#fbbf24';
             themeToggle.style.filter = 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.95))';
@@ -155,17 +158,7 @@ function setupEventListeners() {
             const targetId = navItem.getAttribute('data-target');
             if (targetId) {
                 e.preventDefault();
-                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-                
-                navItem.classList.add('active');
-                const bottomNavItem = document.querySelector(`.bottom-nav .nav-item[data-target="${targetId}"]`);
-                if (bottomNavItem) bottomNavItem.classList.add('active');
-
-                const targetEl = document.getElementById(targetId);
-                if (targetEl) {
-                    targetEl.classList.add('active');
-                }
+                ui.setActiveView(targetId);
 
                 if (targetId === 'view-stats') {
                     charts.updateDashboard();
@@ -486,7 +479,7 @@ function setupEventListeners() {
                 if (store.editingNoteId) {
                     store.editNote(store.editingNoteId, text, color);
                     store.setEditingNoteId(null);
-                    ui.elements.saveNoteBtn.innerHTML = '<span class="material-symbols-rounded">save</span> Enregistrer la Note';
+                    ui.elements.saveNoteBtn.innerHTML = '<span aria-hidden="true" class="material-symbols-rounded">save</span> Enregistrer la Note';
                     const cancelBtn = document.getElementById('cancel-edit-note-btn');
                     if (cancelBtn) cancelBtn.style.display = 'none';
                     ui.showToast('Note modifiée !', 'success');
