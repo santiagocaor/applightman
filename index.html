@@ -339,6 +339,13 @@
                     </div>
                 </div>
 
+                <div class="card chart-card full-width-card">
+                    <h3>Évolution mensuelle par catégorie</h3>
+                    <div class="chart-container">
+                        <canvas id="categoryEvolutionChart" role="img" aria-label="Graphique : Évolution mensuelle par catégorie de matériel"></canvas>
+                    </div>
+                </div>
+
                 <!-- BLOC 2: ANALYSE SPATIALE & IMPUTABILITÉ -->
                 <div class="stats-block-header">
                     <span class="block-badge">2</span>
@@ -425,11 +432,6 @@
                     </div>
                 </div>
 
-                <details id="cost-audit" class="card chart-card stats-table-card full-width-card cost-audit" style="grid-column: 1 / -1; min-height: auto; margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
-                    <summary>Contrôle des coûts</summary>
-                    <p class="help-text" style="margin: 0.75rem 0;">Montre avec quelles données et quels prix le coût total est calculé, pour repérer une anomalie.</p>
-                    <div id="cost-audit-body"></div>
-                </details>
             </div>
         </section>
 

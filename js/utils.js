@@ -82,6 +82,31 @@ export function weekdayTotals(records) {
     return { values, weekend };
 }
 
+// Cantidad reemplazada por mes y categoría, para gráficas apiladas.
+// categories va de la más usada a la menos usada; data[categoría][i] corresponde a months[i].
+export function monthlyByCategory(records) {
+    const totals = {};
+    const categoryTotals = {};
+    records.forEach(record => {
+        const key = recordMonthKey(record);
+        if (!key) return;
+        const category = String(record.categorie ?? '').trim() || 'Inconnu';
+        const qty = Number(record.quantite || 0);
+        totals[key] = totals[key] || {};
+        totals[key][category] = (totals[key][category] || 0) + qty;
+        categoryTotals[category] = (categoryTotals[category] || 0) + qty;
+    });
+
+    const months = Object.keys(totals).sort();
+    const categories = Object.keys(categoryTotals)
+        .sort((a, b) => categoryTotals[b] - categoryTotals[a] || a.localeCompare(b, 'fr'));
+    const data = {};
+    categories.forEach(category => {
+        data[category] = months.map(month => totals[month][category] || 0);
+    });
+    return { months, categories, data };
+}
+
 // Las recepciones de material son entradas de stock, no reemplazos: no cuentan como consumo
 export function isReceptionTask(task) {
     return /r[eé]ception/i.test(String(task ?? ''));

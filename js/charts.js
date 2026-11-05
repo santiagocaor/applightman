@@ -1,6 +1,5 @@
 // js/charts.js
-import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage } from './utils.js';
-import { auditCosts } from './audit.js';
+import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -313,7 +312,7 @@ export function updateDashboard() {
         if (ui.elements.filterHistoryCategorie) ui.elements.filterHistoryCategorie.value = 'all';
         if (ui.elements.searchHistory) ui.elements.searchHistory.value = '';
 
-        if ((canvasId === 'monthlyBulbsChart' || canvasId === 'monthlyCostChart' || canvasId === 'taskTypeEvolutionChart') && ui.elements.filterHistoryMonth) {
+        if ((canvasId === 'monthlyBulbsChart' || canvasId === 'monthlyCostChart' || canvasId === 'taskTypeEvolutionChart' || canvasId === 'categoryEvolutionChart') && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = sortedMonths[index] || 'all';
         } else if (canvasId === 'topEtagesChart' && ui.elements.filterHistoryEtage) {
             ui.elements.filterHistoryEtage.value = label || 'all';
@@ -560,6 +559,53 @@ export function updateDashboard() {
         }
     });
 
+    // Évolution mensuelle par catégorie: barres empilées, la catégorie la plus utilisée en bas
+    const categoryEvolution = monthlyByCategory(dashboardRecords);
+    const categoryEvolutionLabels = categoryEvolution.months.map(key => {
+        const [y, m] = key.split('-');
+        return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
+    });
+    const categoryEvolutionDatasets = categoryEvolution.categories.map(cat => ({
+        label: cat,
+        data: categoryEvolution.data[cat],
+        backgroundColor: getCategoryColor(cat),
+        borderWidth: 0,
+        borderRadius: 0,
+        borderSkipped: false
+    }));
+
+    renderChart('categoryEvolutionChart', 'bar', categoryEvolutionLabels, [], null, {
+        datasets: categoryEvolutionDatasets,
+        onClick: handleChartClick,
+        // Al pasar sobre un mes se ven todas las categorías y el total
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+            x: { stacked: true },
+            y: { stacked: true, grace: '10%' }
+        },
+        plugins: {
+            legend: { display: true },
+            tooltip: {
+                callbacks: {
+                    footer: (items) => `Total : ${items.reduce((sum, item) => sum + item.parsed.y, 0).toLocaleString('fr-CA')}`
+                }
+            },
+            datalabels: {
+                // El número solo se muestra si el tramo es lo bastante alto para contenerlo
+                display: (context) => {
+                    const value = context.dataset.data[context.dataIndex];
+                    const axisMax = context.chart.scales.y ? context.chart.scales.y.max : 0;
+                    return value > 0 && axisMax > 0 && value / axisMax >= 0.07;
+                },
+                anchor: 'center',
+                align: 'center',
+                color: '#ffffff',
+                font: { weight: 'bold', family: 'Outfit', size: 11 },
+                formatter: (value) => value > 0 ? value : ''
+            }
+        }
+    });
+
     const topProductsHeight = Math.max(250, sortedProducts.length * 48);
     const topProductsCard = document.getElementById('topProductsChart')?.closest('.chart-card');
     if (topProductsCard) topProductsCard.style.height = `${topProductsHeight + 80}px`;
@@ -603,75 +649,7 @@ export function updateDashboard() {
     });
 
     renderStatsTable(dashboardRecords);
-    renderCostAudit(dashboardRecords);
 }
-
-const money = (value) => Number(value).toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
-
-// Panel "Contrôle des coûts": muestra con qué datos y precios se calcula el costo total
-function renderCostAudit(records) {
-    const body = document.getElementById('cost-audit-body');
-    if (!body) return;
-
-    const audit = auditCosts(records, getCatalogPrice);
-    const { loaded, total } = store.dataInfo || {};
-    const cell = 'padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--border-color);';
-    const sourceLabel = { own: 'Prix du registre', catalog: 'Catalogue', missing: 'Aucun prix' };
-
-    const lines = [
-        `<strong>${audit.count.toLocaleString('fr-CA')}</strong> enregistrements pris en compte` +
-            (audit.firstDate ? `, du ${escapeHtml(audit.firstDate)} au ${escapeHtml(audit.lastDate)}` : '') + '.',
-        `<strong>${audit.totalBulbs.toLocaleString('fr-CA')}</strong> ampoules pour <strong>${money(audit.totalCost)}</strong>.`,
-        `Origine du prix : ${audit.sources.own} du registre, ${audit.sources.catalog} du catalogue, ${audit.sources.missing} sans prix.`
-    ];
-    if (total > loaded) lines.push(`La feuille contient ${total.toLocaleString('fr-CA')} enregistrements ; seuls les ${loaded.toLocaleString('fr-CA')} plus récents sont chargés.`);
-
-    const warnings = [];
-    if (audit.mismatchCount > 0) {
-        const intro = audit.mismatchCount > 1
-            ? `${audit.mismatchCount} enregistrements ont un prix très différent du catalogue.`
-            : '1 enregistrement a un prix très différent du catalogue.';
-        const lineTotalNote = audit.lineTotalCount > 0
-            ? ` ${audit.lineTotalCount} semble${audit.lineTotalCount > 1 ? 'nt' : ''} être le total de la ligne et non le prix unitaire.`
-            : '';
-        warnings.push(intro + lineTotalNote);
-    }
-    if (audit.highQuantity > 0) warnings.push(`${audit.highQuantity} enregistrement${audit.highQuantity > 1 ? 's' : ''} avec 50 ampoules ou plus (maximum : ${audit.maxQuantity}).`);
-    if (audit.possibleDuplicates > 0) warnings.push(`${audit.possibleDuplicates} doublon${audit.possibleDuplicates > 1 ? 's' : ''} possible${audit.possibleDuplicates > 1 ? 's' : ''} (même date, article, lieu et quantité).`);
-
-    const topRows = audit.top.map(item => `
-        <tr>
-            <td style="${cell}">${escapeHtml(item.description)}</td>
-            <td style="${cell} text-align: right; white-space: nowrap;">${item.quantity} × ${money(item.unit)}</td>
-            <td style="${cell} text-align: right; white-space: nowrap; font-weight: 700;">${money(item.cost)}</td>
-            <td style="${cell} white-space: nowrap;">${sourceLabel[item.source]}</td>
-        </tr>`).join('');
-
-    const mismatchRows = audit.mismatches.map(item => `
-        <tr>
-            <td style="${cell}">${escapeHtml(item.description)}</td>
-            <td style="${cell} text-align: right; white-space: nowrap;">${item.quantity}</td>
-            <td style="${cell} text-align: right; white-space: nowrap;">${money(item.ownPrice)}</td>
-            <td style="${cell} text-align: right; white-space: nowrap;">${money(item.catalogPrice)}</td>
-        </tr>`).join('');
-
-    const th = 'padding: 0.45rem 0.6rem; text-align: left; font-size: 0.72rem; text-transform: uppercase; color: var(--text-secondary);';
-    body.innerHTML = `
-        <ul class="cost-audit-list">${lines.map(line => `<li>${line}</li>`).join('')}</ul>
-        ${warnings.length ? `<ul class="cost-audit-list cost-audit-warnings">${warnings.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul>` : ''}
-        ${topRows ? `
-        <h4 class="cost-audit-title">Enregistrements les plus coûteux</h4>
-        <div class="cost-audit-scroll"><table class="cost-audit-table"><thead><tr>
-            <th style="${th}">Description</th><th style="${th} text-align: right;">Calcul</th><th style="${th} text-align: right;">Coût</th><th style="${th}">Prix</th>
-        </tr></thead><tbody>${topRows}</tbody></table></div>` : ''}
-        ${mismatchRows ? `
-        <h4 class="cost-audit-title">Prix du registre très différent du catalogue</h4>
-        <div class="cost-audit-scroll"><table class="cost-audit-table"><thead><tr>
-            <th style="${th}">Description</th><th style="${th} text-align: right;">Qté</th><th style="${th} text-align: right;">Registre</th><th style="${th} text-align: right;">Catalogue</th>
-        </tr></thead><tbody>${mismatchRows}</tbody></table></div>` : ''}
-    `;
-}
-
 function renderChart(canvasId, type, labels, data, colors, customOptions = {}) {
     const canvas = document.getElementById(canvasId);
     // Sin conexión Chart.js puede no estar disponible: el resto de la app debe seguir funcionando

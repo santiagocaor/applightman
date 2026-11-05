@@ -5,7 +5,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     escapeHtml,
+    isReceptionTask,
     localDateString,
+    monthlyAverage,
+    monthlyByCategory,
     naturalCompare,
     parsePrice,
     parseRecordDate,
@@ -103,4 +106,73 @@ test('weekdayTotals ignora registros sin fecha válida y cantidades vacías', ()
     ]);
     assert.deepEqual(values, [0, 0, 0, 0, 0]);
     assert.equal(weekend, 0);
+});
+
+test('isReceptionTask reconoce las recepciones con y sin acento', () => {
+    assert.equal(isReceptionTask('Réception de matériel'), true);
+    assert.equal(isReceptionTask('reception'), true);
+    assert.equal(isReceptionTask('Tournée'), false);
+    assert.equal(isReceptionTask(undefined), false);
+});
+
+test('el promedio mensual cuenta los meses sin registros', () => {
+    const { average, months } = monthlyAverage({ '2026-01': 30, '2026-03': 30 }, new Date(2026, 5, 15));
+    assert.equal(months, 3);
+    assert.equal(average, 20);
+});
+
+test('el promedio mensual deja fuera el mes en curso, que está a medias', () => {
+    const { average, months } = monthlyAverage({ '2026-09': 30, '2026-10': 30, '2026-11': 2 }, new Date(2026, 10, 5));
+    assert.equal(months, 2);
+    assert.equal(average, 30);
+});
+
+test('si solo hay datos del mes en curso, se usa ese mes', () => {
+    assert.deepEqual(monthlyAverage({ '2026-11': 7 }, new Date(2026, 10, 5)), { average: 7, months: 1 });
+});
+
+test('el promedio mensual sin datos es cero', () => {
+    assert.deepEqual(monthlyAverage({}), { average: 0, months: 0 });
+});
+
+test('el promedio mensual cruza el cambio de año', () => {
+    const { average, months } = monthlyAverage({ '2026-11': 10, '2027-01': 20 }, new Date(2027, 5, 1));
+    assert.equal(months, 3);
+    assert.equal(average, 10);
+});
+
+test('monthlyByCategory suma por mes y categoría', () => {
+    const { months, categories, data } = monthlyByCategory([
+        { fecha: '2026-08-03', categorie: 'LED', quantite: 4 },
+        { fecha: '2026-08-20', categorie: 'LED', quantite: 1 },
+        { fecha: '2026-08-21', categorie: 'Fluo', quantite: 2 },
+        { fecha: '2026-10-05', categorie: 'LED', quantite: 6 }
+    ]);
+    assert.deepEqual(months, ['2026-08', '2026-10']);
+    assert.deepEqual(categories, ['LED', 'Fluo']);
+    assert.deepEqual(data, { LED: [5, 6], Fluo: [2, 0] });
+});
+
+test('monthlyByCategory ordena las categorías de la más a la menos usada', () => {
+    const { categories } = monthlyByCategory([
+        { fecha: '2026-08-03', categorie: 'A', quantite: 1 },
+        { fecha: '2026-08-03', categorie: 'B', quantite: 9 },
+        { fecha: '2026-09-03', categorie: 'C', quantite: 5 }
+    ]);
+    assert.deepEqual(categories, ['B', 'C', 'A']);
+});
+
+test('monthlyByCategory agrupa lo que no tiene categoría y usa el mes local', () => {
+    const { months, data } = monthlyByCategory([
+        { date: '2026-08-01T04:00:00.000Z', quantite: 3 },
+        { fecha: '2026-08-02', categorie: '  ', quantite: 2 }
+    ]);
+    assert.deepEqual(months, ['2026-08']);
+    assert.deepEqual(data, { Inconnu: [5] });
+});
+
+test('monthlyByCategory ignora registros sin fecha válida y no falla sin datos', () => {
+    assert.deepEqual(monthlyByCategory([{ categorie: 'A', quantite: 5 }, { fecha: 'no', categorie: 'A', quantite: 1 }]),
+        { months: [], categories: [], data: {} });
+    assert.deepEqual(monthlyByCategory([]), { months: [], categories: [], data: {} });
 });
