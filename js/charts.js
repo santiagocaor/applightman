@@ -1,5 +1,5 @@
 // js/charts.js
-import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare } from './utils.js';
+import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -337,6 +337,39 @@ export function updateDashboard() {
             y: { grace: '18%' }
         },
         plugins: {
+            datalabels: {
+                anchor: 'end',
+                align: 'top',
+                color: textColor,
+                font: { weight: 'bold', family: 'Outfit', size: 12 },
+                formatter: (val) => val > 0 ? val : ''
+            }
+        }
+    });
+
+    // Ampoules remplacées de lundi à vendredi: le jour le plus chargé ressort, les autres restent neutres
+    const weekdayLabels = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+    const { values: weekdayValues, weekend: weekendTotal } = weekdayTotals(dashboardRecords);
+    const weekdayMax = Math.max(...weekdayValues);
+    const weekdayColors = weekdayValues.map(v => (weekdayMax > 0 && v === weekdayMax)
+        ? volumeColor
+        : (isDarkMode ? '#475569' : '#94a3b8'));
+
+    const weekendNote = document.getElementById('weekday-chart-note');
+    if (weekendNote) {
+        weekendNote.textContent = weekendTotal > 0
+            ? `${weekendTotal.toLocaleString('fr-CA')} ampoule${weekendTotal > 1 ? 's' : ''} remplacée${weekendTotal > 1 ? 's' : ''} le week-end ne figure${weekendTotal > 1 ? 'nt' : ''} pas dans ce graphique.`
+            : '';
+        weekendNote.classList.toggle('hidden-field', weekendTotal === 0);
+    }
+
+    renderChart('weekdayChart', 'bar', weekdayLabels, weekdayValues, weekdayColors, {
+        datasetLabel: 'Ampoules',
+        scales: {
+            y: { grace: '18%' }
+        },
+        plugins: {
+            legend: { display: false },
             datalabels: {
                 anchor: 'end',
                 align: 'top',

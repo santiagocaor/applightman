@@ -1595,3 +1595,10 @@ body {
 [data-theme="dark"] .nav-item.active .material-symbols-rounded {
     color: var(--primary);
 }
+
+.chart-note {
+    margin: 0.75rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}

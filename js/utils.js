@@ -61,6 +61,27 @@ export function recordMonthKey(record) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+// Cantidad reemplazada por día de la semana. values va de lunes (0) a viernes (4);
+// weekend suma lo registrado en sábado y domingo, que la gráfica de lunes a viernes no muestra
+export function weekdayTotals(records) {
+    const values = [0, 0, 0, 0, 0];
+    let weekend = 0;
+    records.forEach(record => {
+        const value = record.date || record.fecha;
+        if (!value) return;
+        const d = parseRecordDate(value);
+        if (isNaN(d)) return;
+        const qty = Number(record.quantite || 0);
+        const day = d.getDay(); // 0 = domingo ... 6 = sábado
+        if (day >= 1 && day <= 5) {
+            values[day - 1] += qty;
+        } else {
+            weekend += qty;
+        }
+    });
+    return { values, weekend };
+}
+
 // Admite números y textos como "4,50" o "4.50 $"; devuelve null si no hay un precio válido
 export function parsePrice(value) {
     if (typeof value === 'number') return isFinite(value) ? value : null;

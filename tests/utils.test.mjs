@@ -9,7 +9,8 @@ import {
     naturalCompare,
     parsePrice,
     parseRecordDate,
-    recordMonthKey
+    recordMonthKey,
+    weekdayTotals
 } from '../js/utils.js';
 
 test('la zona horaria de prueba reproduce el problema de new Date()', () => {
@@ -65,4 +66,41 @@ test('escapeHtml neutraliza contenido y atributos', () => {
 test('naturalCompare ordena los pisos como una persona', () => {
     const floors = ['RDC', '10', '2', '16A', '1', '16'].sort(naturalCompare);
     assert.deepEqual(floors, ['1', '2', '10', '16', '16A', 'RDC']);
+});
+
+test('weekdayTotals suma por día de lunes a viernes', () => {
+    const { values, weekend } = weekdayTotals([
+        { fecha: '2026-11-02', quantite: 3 }, // lunes
+        { fecha: '2026-11-02', quantite: 2 }, // lunes
+        { fecha: '2026-11-04', quantite: 4 }, // miércoles
+        { fecha: '2026-11-06', quantite: 1 }  // viernes
+    ]);
+    assert.deepEqual(values, [5, 0, 4, 0, 1]);
+    assert.equal(weekend, 0);
+});
+
+test('weekdayTotals separa el fin de semana en lugar de mezclarlo', () => {
+    const { values, weekend } = weekdayTotals([
+        { fecha: '2026-11-07', quantite: 6 }, // sábado
+        { fecha: '2026-11-08', quantite: 2 }, // domingo
+        { fecha: '2026-11-09', quantite: 1 }  // lunes
+    ]);
+    assert.deepEqual(values, [1, 0, 0, 0, 0]);
+    assert.equal(weekend, 8);
+});
+
+test('weekdayTotals no corre un día las fechas de Google Sheets', () => {
+    // Un lunes a las 00:00 en Montreal llega como 04:00 UTC; en UTC caería en domingo
+    const { values } = weekdayTotals([{ date: '2026-11-02T05:00:00.000Z', quantite: 7 }]);
+    assert.deepEqual(values, [7, 0, 0, 0, 0]);
+});
+
+test('weekdayTotals ignora registros sin fecha válida y cantidades vacías', () => {
+    const { values, weekend } = weekdayTotals([
+        { quantite: 5 },
+        { fecha: 'no es fecha', quantite: 5 },
+        { fecha: '2026-11-03' }
+    ]);
+    assert.deepEqual(values, [0, 0, 0, 0, 0]);
+    assert.equal(weekend, 0);
 });
