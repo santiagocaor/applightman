@@ -730,7 +730,7 @@ function renderCompareEvolution(config, records) {
     const b = selectB && keys.includes(saved.b) && saved.b !== a ? saved.b : '';
 
     fillCompareSelect(selectA, entries, a, null);
-    if (selectB) fillCompareSelect(selectB, entries.filter(entry => entry.key !== a), b, '— Aucune —');
+    if (selectB) fillCompareSelect(selectB, entries.filter(entry => entry.key !== a), b, '— Sans comparaison —');
 
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
     const textColor = isDarkMode ? '#94a3b8' : '#475569';
