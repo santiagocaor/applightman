@@ -168,8 +168,6 @@ function setupEventListeners() {
                     charts.updateDashboard();
                 } else if (targetId === 'view-historique') {
                     ui.renderHistory();
-                } else if (targetId === 'view-inventaire') {
-                    ui.renderInventory();
                 } else if (targetId === 'view-notes') {
                     ui.renderNotes();
                 }
@@ -214,49 +212,6 @@ function setupEventListeners() {
         });
     }
 
-
-    if (ui.elements.filterInvCategorie) {
-        ui.elements.filterInvCategorie.addEventListener('change', () => {
-            ui.updateInventoryDescriptionFilter();
-            ui.renderInventory();
-        });
-    }
-    if (ui.elements.filterInvDescription) {
-        ui.elements.filterInvDescription.addEventListener('change', (e) => {
-            const selectedDesc = e.target.value;
-            if (selectedDesc !== 'all') {
-                const foundItem = store.appOptions.inventory.find(item => item.description === selectedDesc);
-                if (foundItem && foundItem.categorie && ui.elements.filterInvCategorie.value !== foundItem.categorie) {
-                    ui.elements.filterInvCategorie.value = foundItem.categorie;
-                    ui.updateInventoryDescriptionFilter();
-                }
-            }
-            ui.renderInventory();
-        });
-    }
-    if (ui.elements.clearInvFiltersBtn) {
-        ui.elements.clearInvFiltersBtn.addEventListener('click', () => {
-            if (ui.elements.filterInvCategorie) ui.elements.filterInvCategorie.value = 'all';
-            ui.updateInventoryDescriptionFilter(); // Repopulate all
-            if (ui.elements.filterInvDescription) ui.elements.filterInvDescription.value = 'all';
-            if (ui.elements.filterInvAutonomie) ui.elements.filterInvAutonomie.value = 'all';
-            if (ui.elements.searchInv) ui.elements.searchInv.value = '';
-            ui.renderInventory();
-        });
-    }
-    
-    if (ui.elements.filterInvAutonomie) {
-        ui.elements.filterInvAutonomie.addEventListener('change', () => {
-            ui.renderInventory();
-        });
-    }
-    
-    if (ui.elements.searchInv) {
-        // [FIX M-4] Debounce: espera 250ms antes de filtrar el inventario
-        ui.elements.searchInv.addEventListener('input', debounce(() => {
-            ui.renderInventory();
-        }, 250));
-    }
     if (ui.elements.tacheSelect) {
         ui.elements.tacheSelect.addEventListener('change', (e) => {
             const val = (e.target.value || "").trim().toLowerCase();

@@ -52,8 +52,7 @@ export function refreshViews() {
     [
         charts.populateFilters,
         charts.updateDashboard,
-        ui.renderHistory,
-        ui.renderInventory
+        ui.renderHistory
     ].forEach(render => {
         try {
             render();

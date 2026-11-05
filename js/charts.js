@@ -1,5 +1,6 @@
 // js/charts.js
-import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals } from './utils.js';
+import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage } from './utils.js';
+import { auditCosts } from './audit.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -27,10 +28,7 @@ export function getFilteredRecords() {
     // Excluir registros de "Réception de matériel" solo cuando no hay filtro de tarea activo
     // (comportamiento específico de Estadísticas para no distorsionar los datos)
     if (tVal === 'all') {
-        filtered = filtered.filter(r => {
-            const t = String(r.tache || '').toLowerCase();
-            return !t.includes('reception') && !t.includes('réception');
-        });
+        filtered = filtered.filter(r => !isReceptionTask(r.tache));
     }
 
     return filtered;
@@ -49,7 +47,7 @@ export function getCatalogPrice(r) {
     const normalize = (value) => String(value ?? "").trim().toLowerCase();
     const idKey = normalize(r.id_item);
     const descKey = normalize(r.description);
-    const catalogs = [store.appOptions.inventory || [], store.appOptions.opciones || []];
+    const catalogs = [store.appOptions.opciones || []];
 
     for (const list of catalogs) {
         const byId = idKey ? list.find(item => normalize(item.id) === idKey) : null;
@@ -225,15 +223,17 @@ export function updateDashboard() {
         trendUnitAvgEl.textContent = 'Moyenne / ampoule';
     }
 
+    // Promedio sobre meses completos, contando también los meses sin registros
+    const { average: monthlyAvg, months: averageMonths } = monthlyAverage(monthlyData);
     if (ui.elements.statAvg) {
-        const avg = sortedMonths.length > 0 ? (totalBulbs / sortedMonths.length).toFixed(1) : 0;
+        const avg = monthlyAvg.toFixed(1);
         ui.elements.statAvg.textContent = avg;
         ui.elements.statAvg.title = avg;
     }
     const trendAvgEl = document.getElementById('stat-trend-avg');
     if (trendAvgEl) {
         trendAvgEl.className = 'stat-trend neutral';
-        trendAvgEl.textContent = `Sur ${sortedMonths.length || 1} mois`;
+        trendAvgEl.textContent = `Sur ${averageMonths || 1} mois`;
     }
 
     if (ui.elements.statTopEtage) {
@@ -603,6 +603,73 @@ export function updateDashboard() {
     });
 
     renderStatsTable(dashboardRecords);
+    renderCostAudit(dashboardRecords);
+}
+
+const money = (value) => Number(value).toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
+
+// Panel "Contrôle des coûts": muestra con qué datos y precios se calcula el costo total
+function renderCostAudit(records) {
+    const body = document.getElementById('cost-audit-body');
+    if (!body) return;
+
+    const audit = auditCosts(records, getCatalogPrice);
+    const { loaded, total } = store.dataInfo || {};
+    const cell = 'padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--border-color);';
+    const sourceLabel = { own: 'Prix du registre', catalog: 'Catalogue', missing: 'Aucun prix' };
+
+    const lines = [
+        `<strong>${audit.count.toLocaleString('fr-CA')}</strong> enregistrements pris en compte` +
+            (audit.firstDate ? `, du ${escapeHtml(audit.firstDate)} au ${escapeHtml(audit.lastDate)}` : '') + '.',
+        `<strong>${audit.totalBulbs.toLocaleString('fr-CA')}</strong> ampoules pour <strong>${money(audit.totalCost)}</strong>.`,
+        `Origine du prix : ${audit.sources.own} du registre, ${audit.sources.catalog} du catalogue, ${audit.sources.missing} sans prix.`
+    ];
+    if (total > loaded) lines.push(`La feuille contient ${total.toLocaleString('fr-CA')} enregistrements ; seuls les ${loaded.toLocaleString('fr-CA')} plus récents sont chargés.`);
+
+    const warnings = [];
+    if (audit.mismatchCount > 0) {
+        const intro = audit.mismatchCount > 1
+            ? `${audit.mismatchCount} enregistrements ont un prix très différent du catalogue.`
+            : '1 enregistrement a un prix très différent du catalogue.';
+        const lineTotalNote = audit.lineTotalCount > 0
+            ? ` ${audit.lineTotalCount} semble${audit.lineTotalCount > 1 ? 'nt' : ''} être le total de la ligne et non le prix unitaire.`
+            : '';
+        warnings.push(intro + lineTotalNote);
+    }
+    if (audit.highQuantity > 0) warnings.push(`${audit.highQuantity} enregistrement${audit.highQuantity > 1 ? 's' : ''} avec 50 ampoules ou plus (maximum : ${audit.maxQuantity}).`);
+    if (audit.possibleDuplicates > 0) warnings.push(`${audit.possibleDuplicates} doublon${audit.possibleDuplicates > 1 ? 's' : ''} possible${audit.possibleDuplicates > 1 ? 's' : ''} (même date, article, lieu et quantité).`);
+
+    const topRows = audit.top.map(item => `
+        <tr>
+            <td style="${cell}">${escapeHtml(item.description)}</td>
+            <td style="${cell} text-align: right; white-space: nowrap;">${item.quantity} × ${money(item.unit)}</td>
+            <td style="${cell} text-align: right; white-space: nowrap; font-weight: 700;">${money(item.cost)}</td>
+            <td style="${cell} white-space: nowrap;">${sourceLabel[item.source]}</td>
+        </tr>`).join('');
+
+    const mismatchRows = audit.mismatches.map(item => `
+        <tr>
+            <td style="${cell}">${escapeHtml(item.description)}</td>
+            <td style="${cell} text-align: right; white-space: nowrap;">${item.quantity}</td>
+            <td style="${cell} text-align: right; white-space: nowrap;">${money(item.ownPrice)}</td>
+            <td style="${cell} text-align: right; white-space: nowrap;">${money(item.catalogPrice)}</td>
+        </tr>`).join('');
+
+    const th = 'padding: 0.45rem 0.6rem; text-align: left; font-size: 0.72rem; text-transform: uppercase; color: var(--text-secondary);';
+    body.innerHTML = `
+        <ul class="cost-audit-list">${lines.map(line => `<li>${line}</li>`).join('')}</ul>
+        ${warnings.length ? `<ul class="cost-audit-list cost-audit-warnings">${warnings.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul>` : ''}
+        ${topRows ? `
+        <h4 class="cost-audit-title">Enregistrements les plus coûteux</h4>
+        <div class="cost-audit-scroll"><table class="cost-audit-table"><thead><tr>
+            <th style="${th}">Description</th><th style="${th} text-align: right;">Calcul</th><th style="${th} text-align: right;">Coût</th><th style="${th}">Prix</th>
+        </tr></thead><tbody>${topRows}</tbody></table></div>` : ''}
+        ${mismatchRows ? `
+        <h4 class="cost-audit-title">Prix du registre très différent du catalogue</h4>
+        <div class="cost-audit-scroll"><table class="cost-audit-table"><thead><tr>
+            <th style="${th}">Description</th><th style="${th} text-align: right;">Qté</th><th style="${th} text-align: right;">Registre</th><th style="${th} text-align: right;">Catalogue</th>
+        </tr></thead><tbody>${mismatchRows}</tbody></table></div>` : ''}
+    `;
 }
 
 function renderChart(canvasId, type, labels, data, colors, customOptions = {}) {

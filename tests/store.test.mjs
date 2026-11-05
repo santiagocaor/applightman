@@ -71,7 +71,7 @@ test('los valores numéricos de la hoja se convierten en texto', async () => {
     assert.equal(store.records[0].etage, '7');
     assert.equal(store.appOptions.opciones[0].id, '801014');
     assert.deepEqual(store.appOptions.etage, ['1', 'RDC']);
-    assert.deepEqual(store.appOptions.inventory, []);
+    assert.equal(store.appOptions.inventory, undefined);
 });
 
 test('el catálogo de prueba nunca sustituye al guardado', async () => {

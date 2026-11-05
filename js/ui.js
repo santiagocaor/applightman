@@ -1,5 +1,5 @@
 // js/ui.js
-import { getCategoryColor, escapeHtml, localDateString, parseRecordDate, recordMonthKey, parsePrice } from './utils.js';
+import { getCategoryColor, escapeHtml, localDateString, parseRecordDate } from './utils.js';
 import * as store from './store.js';
 import { deleteRecord } from './api.js';
 
@@ -40,7 +40,6 @@ export const elements = {
     searchHistory: document.getElementById('search-history'),
     historySummary: document.getElementById('history-summary'),
     reloadAppBtn: document.getElementById('reload-app-btn'),
-    navBadgeInventaire: document.getElementById('nav-badge-inventaire'),
     
     statAvg: document.getElementById('stat-avg'),
     statPrice: document.getElementById('stat-price'),
@@ -59,14 +58,7 @@ export const elements = {
     
     noteTextInput: document.getElementById('note-text'),
     saveNoteBtn: document.getElementById('save-note-btn'),
-    notesListContainer: document.getElementById('notes-list-container'),
-    
-    inventoryContainer: document.getElementById('inventory-container'),
-    filterInvCategorie: document.getElementById('filter-inv-categorie'),
-    filterInvDescription: document.getElementById('filter-inv-description'),
-    filterInvAutonomie: document.getElementById('filter-inv-autonomie'),
-    searchInv: document.getElementById('search-inv'),
-    clearInvFiltersBtn: document.getElementById('clear-inv-filters-btn')
+    notesListContainer: document.getElementById('notes-list-container')
 };
 
 const HISTORY_PAGE_SIZE = 200;
@@ -274,32 +266,6 @@ export function populateAllSelects() {
         : store.appOptions.opciones);
 
     if (elements.idInput && elements.descSelect && !elements.descSelect.value) elements.idInput.value = "";
-    // Inventory Filters
-    if (store.appOptions.inventory && store.appOptions.inventory.length > 0) {
-        const invCategories = [...new Set(store.appOptions.inventory.map(item => item.categorie).filter(Boolean))];
-        populateSelect('filter-inv-categorie', invCategories.sort());
-        updateInventoryDescriptionFilter();
-    }
-}
-
-export function updateInventoryDescriptionFilter() {
-    if (!elements.filterInvCategorie || !elements.filterInvDescription) return;
-    
-    const currentDesc = elements.filterInvDescription.value;
-    const cat = elements.filterInvCategorie.value;
-    let items = store.appOptions.inventory || [];
-    if (cat !== 'all') {
-        items = items.filter(item => item.categorie && String(item.categorie).trim() === String(cat).trim());
-    }
-    
-    const invDescriptions = [...new Set(items.map(item => item.description).filter(Boolean))];
-    populateSelect('filter-inv-description', invDescriptions.sort());
-    
-    if (invDescriptions.includes(currentDesc)) {
-        elements.filterInvDescription.value = currentDesc;
-    } else {
-        elements.filterInvDescription.value = 'all';
-    }
 }
 
 export function updateDateDisplay() {
@@ -782,196 +748,4 @@ export function renderNotes() {
             }
         });
     });
-}
-
-export function renderInventory() {
-    if (!elements.inventoryContainer) return;
-    
-    let inventory = store.appOptions.inventory || [];
-    const filterCat = (elements.filterInvCategorie ? elements.filterInvCategorie.value : "all");
-    const filterDesc = (elements.filterInvDescription ? elements.filterInvDescription.value : "all");
-    const filterAuto = (elements.filterInvAutonomie ? elements.filterInvAutonomie.value : "all");
-    const searchText = (elements.searchInv ? elements.searchInv.value.trim().toLowerCase() : "");
-    
-    // Calculate Consumo & Total Months
-    const records = store.getAllRecords();
-    const depenseMap = {};
-    const monthSet = new Set();
-    records.forEach(rec => {
-        if (rec.id_item && rec.quantite) {
-            depenseMap[rec.id_item] = (depenseMap[rec.id_item] || 0) + (parseInt(rec.quantite, 10) || 0);
-        }
-        const monthKey = recordMonthKey(rec);
-        if (monthKey) monthSet.add(monthKey);
-    });
-    
-    const totalMonths = Math.max(1, monthSet.size);
-
-    elements.inventoryContainer.innerHTML = '';
-    
-    let count = 0;
-    
-    inventory.forEach(item => {
-        if (filterCat !== 'all' && (!item.categorie || String(item.categorie).trim() !== String(filterCat).trim())) return;
-        if (filterDesc !== 'all' && (!item.description || String(item.description).trim() !== String(filterDesc).trim())) return;
-        
-        if (searchText) {
-            const searchStr = `${item.id || ''} ${item.description || ''} ${item.name || ''}`.toLowerCase();
-            if (!searchStr.includes(searchText)) return;
-        }
-        
-        // 1. Consumo
-        const consumoCalc = depenseMap[item.id] || 0;
-        const consumo = (item.consumo !== undefined && item.consumo !== "") ? item.consumo : consumoCalc;
-        
-        // 2. Prom. mes
-        let rawProm;
-        if (item.promMes !== undefined && item.promMes !== "") {
-            rawProm = item.promMes;
-        } else if (item['Prom. mes'] !== undefined && item['Prom. mes'] !== "") {
-            rawProm = item['Prom. mes'];
-        } else {
-            rawProm = Number(consumo) / totalMonths;
-        }
-        const promMesNum = Number(rawProm);
-        const promMes = !isNaN(promMesNum) ? promMesNum.toFixed(1) : (rawProm || "0.0");
-
-        // 3. Stock
-        const initialStock = parseInt(item.stock, 10) || 0;
-        let displayStock;
-        if (item.solde !== undefined && item.solde !== "") {
-            displayStock = parseInt(item.solde, 10) || 0;
-        } else if (item.stock !== undefined && item.stock !== "") {
-            displayStock = initialStock;
-        } else {
-            displayStock = 0;
-        }
-
-        // 4. Autonomie
-        const avgMes = parseFloat(promMes);
-        // Un stock negativo (más consumo que entradas) también cuenta como agotado
-        const isOutOfStock = displayStock <= 0;
-        let monthsLeft = 999;
-        if (isOutOfStock) {
-            monthsLeft = 0;
-        } else if (avgMes > 0) {
-            monthsLeft = parseFloat((displayStock / avgMes).toFixed(1));
-        }
-
-        // Appliquer le filtre d'autonomie
-        if (filterAuto !== 'all') {
-            if (filterAuto === 'epuise' && !isOutOfStock) return;
-            if (filterAuto === 'critique' && (isOutOfStock || monthsLeft >= 2)) return;
-            if (filterAuto === 'attention' && (monthsLeft < 2 || monthsLeft >= 6)) return;
-            if (filterAuto === 'ok' && monthsLeft < 6) return;
-        }
-
-        // Determinar el límite/umbral
-        const seuil = parseInt(item.limite || item.Limite) || 5;
-        const isCritical = displayStock <= seuil;
-        
-        count++;
-
-        const stockClass = isCritical ? 'low-stock' : 'good-stock';
-        const formattedPrix = (parsePrice(item.prix) ?? 0).toFixed(2);
-        
-        const card = document.createElement('div');
-        card.className = 'inv-card';
-        const maxCapacity = Math.max(displayStock + Number(consumo || 0), initialStock, 1);
-        const percentage = Math.max(0, Math.min(100, Math.round((displayStock / maxCapacity) * 100)));
-        let progressColor = 'var(--primary)';
-        if (isCritical) progressColor = 'var(--error)';
-        else if (percentage <= 30 || displayStock <= seuil * 2) progressColor = '#f59e0b'; // Amber for warning
-
-        let autonomieText = "N/A";
-        let autonomieColor = "var(--text-secondary)";
-        let autonomieBg = "rgba(107, 114, 128, 0.1)";
-
-        if (isOutOfStock) {
-            autonomieText = "Épuisé";
-            autonomieColor = "var(--error)";
-            autonomieBg = "rgba(239, 68, 68, 0.1)";
-        } else if (avgMes > 0) {
-            autonomieText = `${monthsLeft} mois`;
-            if (monthsLeft < 2) {
-                autonomieColor = "var(--error)";
-                autonomieBg = "rgba(239, 68, 68, 0.1)";
-            } else if (monthsLeft < 6) {
-                autonomieColor = "#f59e0b"; // Amber
-                autonomieBg = "rgba(245, 158, 11, 0.1)";
-            } else {
-                autonomieColor = "var(--success)";
-                autonomieBg = "rgba(16, 185, 129, 0.1)";
-            }
-        } else if (avgMes === 0) {
-            autonomieText = "+12 mois";
-            autonomieColor = "var(--success)";
-            autonomieBg = "rgba(16, 185, 129, 0.1)";
-        }
-
-        card.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                <div class="inv-title" style="display: flex; align-items: flex-start; margin: 0; max-width: 100%;">
-                    <span aria-hidden="true" class="material-symbols-rounded" style="flex-shrink: 0; color: var(--text-secondary); margin-right: 0.35rem; margin-top: 0.2rem; font-size: 0.95rem;">lightbulb</span>
-                    <span style="line-height: 1.3; flex: 1; min-width: 0; word-break: break-word; overflow-wrap: break-word;">${escapeHtml(item.description || 'Sans description')}</span>
-                </div>
-                
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; max-width: 100%;">
-                    <span class="pro-id-badge" style="height: 24px; padding: 0 0.75rem; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; background: rgba(59, 130, 246, 0.1); color: var(--primary); font-weight: 500; font-size: 0.75rem;"><span aria-hidden="true" class="material-symbols-rounded" style="margin-right: 0.25rem;">sell</span> ${escapeHtml(item.id)}</span>
-                    <span class="pro-id-badge" style="height: 24px; padding: 0 0.75rem; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; background: rgba(107, 114, 128, 0.1); color: var(--text-secondary); font-weight: 500; font-size: 0.75rem;"><span aria-hidden="true" class="material-symbols-rounded" style="margin-right: 0.25rem;">folder_open</span> ${escapeHtml(item.categorie || 'Sans Catégorie')}</span>
-                    <span class="pro-id-badge" style="height: 24px; padding: 0 0.75rem; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; background: rgba(16, 185, 129, 0.1); color: var(--success); font-weight: 500; font-size: 0.75rem;"><span aria-hidden="true" class="material-symbols-rounded" style="margin-right: 0.25rem;">attach_money</span> ${formattedPrix}</span>
-                    <span class="pro-id-badge" style="height: 24px; padding: 0 0.75rem; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; white-space: nowrap; background: ${autonomieBg}; color: ${autonomieColor}; font-weight: 600; font-size: 0.75rem;" title="Autonomie estimée"><span aria-hidden="true" class="material-symbols-rounded" style="margin-right: 0.25rem;">hourglass_bottom</span> ${autonomieText}</span>
-                </div>
-            </div>
-            
-            <div class="pro-card-body" style="padding: 1.25rem 0 0 0;">
-                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--input-bg); padding: 0.75rem 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                    <div style="text-align: center; flex: 1;">
-                        <span style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.25rem;">Consom.</span>
-                        <span style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">${escapeHtml(consumo)}</span>
-                    </div>
-                    <div style="width: 1px; height: 36px; background: var(--border-color); opacity: 0.6;"></div>
-                    <div style="text-align: center; flex: 1;">
-                        <span style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.25rem;">Moy./mois</span>
-                        <span style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">${escapeHtml(promMes)}</span>
-                    </div>
-                    <div style="width: 1px; height: 36px; background: var(--border-color); opacity: 0.6;"></div>
-                    <div style="text-align: center; flex: 1;">
-                        <span style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.25rem;">Stock</span>
-                        <span style="font-size: 1.15rem; font-weight: 700;" class="${stockClass}">${displayStock}</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div style="width: 100%; height: 6px; background: var(--border-color); border-radius: 3px; margin-top: 1.25rem; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">
-                <div style="height: 100%; width: ${percentage}%; background: ${progressColor}; transition: width 0.5s ease-out; border-radius: 3px;"></div>
-            </div>
-        `;
-        
-        elements.inventoryContainer.appendChild(card);
-    });
-    
-    if (count === 0) {
-        elements.inventoryContainer.innerHTML = `
-            <div style="text-align:center; padding: 2rem; color: var(--text-secondary); background: var(--bg-color); border-radius: var(--radius-lg);">
-                <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;">inventory_2</span>
-                <p>Aucun article trouvé dans l'inventaire.</p>
-            </div>
-        `;
-    }
-
-    // Update badge
-    if (elements.navBadgeInventaire) {
-        const seuil_badge_count = (store.appOptions.inventory || []).filter(item => {
-            const s = parseInt(item.stock, 10) || 0;
-            const lim = parseInt(item.limite || item.Limite) || 5;
-            return s <= lim;
-        }).length;
-        if (seuil_badge_count > 0) {
-            elements.navBadgeInventaire.textContent = seuil_badge_count;
-            elements.navBadgeInventaire.classList.remove('hidden');
-        } else {
-            elements.navBadgeInventaire.classList.add('hidden');
-        }
-    }
 }

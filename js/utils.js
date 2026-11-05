@@ -82,6 +82,32 @@ export function weekdayTotals(records) {
     return { values, weekend };
 }
 
+// Las recepciones de material son entradas de stock, no reemplazos: no cuentan como consumo
+export function isReceptionTask(task) {
+    return /r[eé]ception/i.test(String(task ?? ''));
+}
+
+function monthIndex(key) {
+    const [year, month] = key.split('-').map(Number);
+    return year * 12 + (month - 1);
+}
+
+// Promedio mensual sobre meses completos del calendario, incluidos los meses sin registros.
+// El mes en curso se deja fuera mientras existan meses anteriores, porque aún está a medias.
+export function monthlyAverage(monthlyTotals, now = new Date()) {
+    let keys = Object.keys(monthlyTotals).sort();
+    if (keys.length === 0) return { average: 0, months: 0 };
+
+    const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (keys.length > 1 && keys.includes(currentKey)) {
+        keys = keys.filter(key => key !== currentKey);
+    }
+
+    const months = monthIndex(keys[keys.length - 1]) - monthIndex(keys[0]) + 1;
+    const total = keys.reduce((sum, key) => sum + monthlyTotals[key], 0);
+    return { average: total / months, months };
+}
+
 // Admite números y textos como "4,50" o "4.50 $"; devuelve null si no hay un precio válido
 export function parsePrice(value) {
     if (typeof value === 'number') return isFinite(value) ? value : null;
