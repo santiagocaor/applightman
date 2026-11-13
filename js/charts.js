@@ -1,5 +1,5 @@
 // js/charts.js
-import { taskColor, NEUTRAL_COLORS, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, incompleteMonths, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, uniqueDocsByMonth, recordMonths, monthlyReport, monthlySeries } from './utils.js';
+import { taskColor, NEUTRAL_COLORS, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, incompleteMonths, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, etageGroupKey, etageLabel, ELEVATOR_GROUP, uniqueDocsByMonth, recordMonths, monthlyReport, monthlySeries } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -230,7 +230,8 @@ export function updateDashboard() {
     const etageBulbsByCategory = {};
     dashboardRecords.forEach(r => {
         if (r.etage !== undefined && r.etage !== null) {
-            const etageStr = String(r.etage).trim();
+            // Las cabinas de ascensor cuentan juntas como "Ascenseurs"
+            const etageStr = etageGroupKey(r);
             const cat = r.categorie || 'Inconnu';
             if (etageStr) {
                 if (!etageBulbsByCategory[etageStr]) etageBulbsByCategory[etageStr] = {};
@@ -268,7 +269,7 @@ export function updateDashboard() {
     }
 
     if (ui.elements.statTopEtage) {
-        const etageTxt = sortedEtages.length > 0 ? `Étage ${sortedEtages[0]}` : "-";
+        const etageTxt = sortedEtages.length > 0 ? etageLabel(sortedEtages[0]) : "-";
         ui.elements.statTopEtage.textContent = etageTxt;
         ui.elements.statTopEtage.title = etageTxt;
     }
@@ -358,7 +359,12 @@ export function updateDashboard() {
         } else if (canvasId === 'docsEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = docsEvolution.months[index] || 'all';
         } else if (canvasId === 'topEtagesChart' && ui.elements.filterHistoryEtage) {
-            ui.elements.filterHistoryEtage.value = label || 'all';
+            if (label === ELEVATOR_GROUP && ui.elements.searchHistory) {
+                // El historial muestra cada cabina por separado: se buscan todas las que empiezan por "ASC"
+                ui.elements.searchHistory.value = 'ASC';
+            } else {
+                ui.elements.filterHistoryEtage.value = label || 'all';
+            }
         } else if (canvasId === 'taskTypeChart' && ui.elements.filterHistoryTache) {
             ui.elements.filterHistoryTache.value = label || 'all';
         } else if (canvasId === 'locataireChart' && ui.elements.filterHistoryLocataire) {
@@ -596,7 +602,7 @@ export function updateDashboard() {
         scales: {
             x: { grace: '15%' },
             // La etiqueta guarda el piso tal cual (lo usa el clic); en el eje se muestra "Étage 2"
-            y: { ticks: { callback: function (value) { return `Étage ${this.getLabelForValue(value)}`; } } }
+            y: { ticks: { callback: function (value) { return etageLabel(this.getLabelForValue(value)); } } }
         },
         plugins: {
             legend: { display: false },
@@ -809,7 +815,7 @@ function buildReportHtml(report) {
         <tr><td>Bons de travail</td><td>${report.bons}</td></tr>
         <tr><td>Tournées</td><td>${report.tournees}</td></tr>
         <tr><td>Lignes enregistrées</td><td>${report.lines}</td></tr></tbody></table>`;
-    const etages = report.etages.slice(0, 5).map(item => ({ name: `Étage ${item.name}`, total: item.total }));
+    const etages = report.etages.slice(0, 5).map(item => ({ name: etageLabel(item.name), total: item.total }));
     return `<h1>Rapport mensuel — ${escapeHtml(reportMonthLabel(report.month))}</h1>
         ${report.lines === 0 ? '<p>Aucun enregistrement pour ce mois.</p>' : summary
             + reportTable('Étages les plus actifs', etages, 'Étage')
@@ -883,9 +889,9 @@ function locataireOptions(records) {
 function etageOptions(records) {
     const byKey = new Map();
     records.forEach(record => {
-        const key = etageKey(record);
-        if (!key) return;
-        const entry = byKey.get(key) || { key, label: `Étage ${key}`, total: 0 };
+        if (!etageKey(record)) return;
+        const key = etageGroupKey(record);
+        const entry = byKey.get(key) || { key, label: etageLabel(key), total: 0 };
         entry.total += Number(record.quantite || 0);
         byKey.set(key, entry);
     });
@@ -940,7 +946,7 @@ const ETAGE_COMPARE = {
     // Un solo piso a la vez: esta gráfica no se compara con otro
     selectB: null,
     canvasId: 'etageEvolutionChart',
-    getKey: etageKey,
+    getKey: etageGroupKey,
     buildEntries: etageOptions
 };
 
@@ -1209,7 +1215,7 @@ export function refreshStatsFilterOptions() {
     fillFilter(ui.elements.filterMonth, 'Toutes les périodes', [...presetValues, ...monthValues], periodLabel);
 
     fillFilter(ui.elements.filterEtage, 'Tous les étages',
-        withSelected(unique(pool('etage').map(etageKey)).sort(naturalCompare), current.etage));
+        withSelected(unique(pool('etage').map(etageGroupKey)).sort(naturalCompare), current.etage));
     fillFilter(ui.elements.filterLocataire, 'Tous les locataires',
         withSelected(unique(pool('locataire').map(r => String(r.locataire ?? '').trim())).sort(), current.locataire));
     fillFilter(ui.elements.filterTache, 'Toutes les interventions',

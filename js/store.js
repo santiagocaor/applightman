@@ -1,5 +1,5 @@
 // js/store.js
-import { recordMonthKey, monthInPeriod, setCategoryOrder, toDateOnly } from './utils.js';
+import { recordMonthKey, monthInPeriod, setCategoryOrder, toDateOnly, isElevator, ELEVATOR_GROUP } from './utils.js';
 
 // Lee JSON de localStorage sin romper la app si el contenido está dañado
 export function readJson(key, fallback) {
@@ -328,8 +328,86 @@ export function setCompareSelection(a, b, name = 'refs') {
     writeJson(compareKey(name), { a: toText(a), b: toText(b) });
 }
 
+// ------------------------------------------------------------
+// Notas: se guardan en el teléfono y se copian en la pestaña "Notes" de Google Sheets.
+// Cada cambio entra en una cola (guardar o borrar una nota). La cola se envía cuando hay conexión;
+// al recibir las notas de la hoja, los cambios aún pendientes se vuelven a aplicar encima,
+// así nada de lo hecho sin conexión se pierde y lo borrado en otro teléfono desaparece aquí también.
+// ------------------------------------------------------------
+const NOTES_KEY = 'lightman_notes';
+const NOTES_QUEUE_KEY = 'lightman_notes_queue';
+const NOTES_UPLOADED_KEY = 'lightman_notes_uploaded';
+
+export let notesQueue = readArray(NOTES_QUEUE_KEY);
+let notesListener = null;
+
+// app.js se suscribe para enviar la cola en cuanto cambia una nota
+export function onNotesChanged(listener) {
+    notesListener = listener;
+}
+
+function writeNotes(notes) {
+    writeJson(NOTES_KEY, notes);
+}
+
+// Solo queda la última operación de cada nota; seq ordena las operaciones para saber cuáles ya se enviaron
+function queueNoteOperation(operation) {
+    const seq = notesQueue.reduce((max, item) => Math.max(max, item.seq || 0), 0) + 1;
+    notesQueue = [...notesQueue.filter(item => item.id !== operation.id), { ...operation, seq }];
+    writeJson(NOTES_QUEUE_KEY, notesQueue);
+    if (notesListener) notesListener();
+}
+
+function queueNoteSave(note) {
+    queueNoteOperation({ op: 'save', id: note.id, note });
+}
+
+// Lo enviado y confirmado sale de la cola; lo que se cambió mientras tanto (seq mayor) sigue pendiente
+export function markNotesSynced(lastSeq) {
+    notesQueue = notesQueue.filter(item => (item.seq || 0) > lastSeq);
+    writeJson(NOTES_QUEUE_KEY, notesQueue);
+}
+
+function applyNoteOperations(notes, operations) {
+    let result = [...notes];
+    operations.forEach(item => {
+        result = result.filter(note => note.id !== item.id);
+        if (item.op === 'save' && item.note) result.unshift(item.note);
+    });
+    return result;
+}
+
+function normalizeNote(note) {
+    return {
+        id: toText(note.id),
+        text: toText(note.text),
+        color: toText(note.color) || 'note-blue',
+        completed: note.completed === true || /^(true|vrai|1)$/i.test(toText(note.completed)),
+        timestamp: toText(note.timestamp) || new Date().toISOString()
+    };
+}
+
+// Notas recibidas de la hoja: pasan a ser las del teléfono, con los cambios pendientes aplicados encima.
+// La primera vez, las notas que solo estaban en este teléfono se ponen en la cola para subirlas.
+export function applyServerNotes(serverNotes) {
+    const fromSheet = (Array.isArray(serverNotes) ? serverNotes : []).map(normalizeNote).filter(note => note.id);
+    if (!readJson(NOTES_UPLOADED_KEY, false)) {
+        const known = new Set(fromSheet.map(note => note.id));
+        getNotes().filter(note => !known.has(note.id)).forEach(note => {
+            const seq = notesQueue.reduce((max, item) => Math.max(max, item.seq || 0), 0) + 1;
+            if (!notesQueue.some(item => item.id === note.id)) notesQueue.push({ op: 'save', id: note.id, note, seq });
+        });
+        writeJson(NOTES_QUEUE_KEY, notesQueue);
+        writeJson(NOTES_UPLOADED_KEY, true);
+    }
+    const merged = applyNoteOperations(fromSheet, notesQueue)
+        .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+    writeNotes(merged);
+    return merged;
+}
+
 export function getNotes() {
-    return readArray('lightman_notes');
+    return readArray(NOTES_KEY);
 }
 
 export function addNote(noteText, color = 'note-blue') {
@@ -342,7 +420,8 @@ export function addNote(noteText, color = 'note-blue') {
         completed: false
     };
     notes.unshift(newNote);
-    writeJson('lightman_notes', notes);
+    writeNotes(notes);
+    queueNoteSave(newNote);
     return newNote;
 }
 
@@ -353,27 +432,32 @@ export function setEditingNoteId(id) {
 }
 
 export function deleteNote(id) {
-    let notes = getNotes();
-    notes = notes.filter(n => n.id !== id);
-    writeJson('lightman_notes', notes);
+    writeNotes(getNotes().filter(n => n.id !== id));
+    queueNoteOperation({ op: 'delete', id });
+}
+
+function updateNote(id, change) {
+    let changed = null;
+    writeNotes(getNotes().map(n => {
+        if (n.id !== id) return n;
+        changed = { ...n, ...change(n) };
+        return changed;
+    }));
+    if (changed) queueNoteSave(changed);
 }
 
 export function editNote(id, newText, newColor) {
-    let notes = getNotes();
-    notes = notes.map(n => n.id === id ? { ...n, text: newText, color: newColor || n.color } : n);
-    writeJson('lightman_notes', notes);
+    updateNote(id, n => ({ text: newText, color: newColor || n.color }));
 }
 
 export function toggleNoteCompletion(id) {
-    let notes = getNotes();
-    notes = notes.map(n => n.id === id ? { ...n, completed: !n.completed } : n);
-    writeJson('lightman_notes', notes);
+    updateNote(id, n => ({ completed: !n.completed }));
 }
 
 export function clearCompletedNotes() {
-    let notes = getNotes();
-    notes = notes.filter(n => !n.completed);
-    writeJson('lightman_notes', notes);
+    const completed = getNotes().filter(n => n.completed);
+    writeNotes(getNotes().filter(n => !n.completed));
+    completed.forEach(n => queueNoteOperation({ op: 'delete', id: n.id }));
 }
 
 // [FIX M-7] Función centralizada de filtrado — usada por charts.js y ui.js para evitar duplicación de lógica
@@ -385,7 +469,10 @@ export function filterRecords(records, { month = 'all', etage = 'all', tache = '
     }
 
     if (etage !== 'all') {
-        filtered = filtered.filter(r => String(r.etage).trim() === etage);
+        // "Ascenseurs" agrupa todas las cabinas (ASC. # n); cualquier otro valor es un piso exacto
+        filtered = etage === ELEVATOR_GROUP
+            ? filtered.filter(r => isElevator(r.etage))
+            : filtered.filter(r => String(r.etage).trim() === etage);
     }
 
     if (tache !== 'all') {

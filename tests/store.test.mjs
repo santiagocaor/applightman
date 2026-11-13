@@ -242,3 +242,47 @@ test('las fechas de la hoja se guardan como AAAA-MM-DD con el día de la hoja', 
     assert.deepEqual(store.records.map(r => r.date), ['2026-10-01', '2026-10-01', '2026-10-01']);
     assert.equal(store.records[2].fecha, '2026-10-01');
 });
+
+test('el filtro "Ascenseurs" reúne todas las cabinas', async () => {
+    const store = await openStore();
+    const rows = [record({ etage: 'ASC. # 22' }), record({ etage: 'ASC. # 6' }), record({ etage: '2' })];
+    assert.equal(store.filterRecords(rows, { etage: 'Ascenseurs' }).length, 2);
+    assert.equal(store.filterRecords(rows, { etage: 'ASC. # 6' }).length, 1);
+});
+
+test('cada cambio de nota entra en la cola, con una sola operación por nota', async () => {
+    const store = await openStore(CLOUD);
+    let notified = 0;
+    store.onNotesChanged(() => { notified += 1; });
+    const note = store.addNote('Vérifier ballast');
+    store.toggleNoteCompletion(note.id);
+    assert.equal(store.notesQueue.length, 1);
+    assert.equal(store.notesQueue[0].op, 'save');
+    assert.equal(store.notesQueue[0].note.completed, true);
+    store.deleteNote(note.id);
+    assert.deepEqual(store.notesQueue.map(item => item.op), ['delete']);
+    assert.equal(notified, 3);
+});
+
+test('las notas de la hoja sustituyen a las del teléfono, sin perder lo pendiente', async () => {
+    const store = await openStore(CLOUD);
+    store.applyServerNotes([]); // primera conexión, sin notas locales
+    const pending = store.addNote('Pendiente sin conexión');
+    const merged = store.applyServerNotes([{ id: 'srv', text: 'De la hoja', completed: 'TRUE', timestamp: '2026-11-01T00:00:00.000Z' }]);
+    assert.deepEqual(merged.map(n => n.id).sort(), [pending.id, 'srv'].sort());
+    assert.equal(merged.find(n => n.id === 'srv').completed, true);
+    // Una vez enviada, la nota pendiente sale de la cola y la hoja manda
+    store.markNotesSynced(store.notesQueue[store.notesQueue.length - 1].seq);
+    assert.deepEqual(store.applyServerNotes([]).map(n => n.id), []);
+});
+
+test('la primera vez, las notas que solo estaban en el teléfono se suben a la hoja', async () => {
+    const local = JSON.stringify([{ id: 'old', text: 'Ancienne note', timestamp: '2026-10-01T00:00:00.000Z', completed: false }]);
+    const store = await openStore({ ...CLOUD, lightman_notes: local });
+    const merged = store.applyServerNotes([]);
+    assert.deepEqual(merged.map(n => n.id), ['old']);
+    assert.deepEqual(store.notesQueue.map(item => [item.op, item.id]), [['save', 'old']]);
+    // La segunda vez ya no: si la hoja no la tiene es porque se borró en otro teléfono
+    store.markNotesSynced(store.notesQueue[0].seq);
+    assert.deepEqual(store.applyServerNotes([]), []);
+});

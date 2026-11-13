@@ -3,7 +3,7 @@ import * as store from './store.js';
 import * as ui from './ui.js';
 import * as charts from './charts.js';
 import * as api from './api.js';
-import { generateUUID, debounce, localDateString, parsePrice } from './utils.js';
+import { generateUUID, debounce, localDateString, parsePrice, docNumberWarnings } from './utils.js';
 
 const ThemeManager = {
     init() {
@@ -73,9 +73,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Los controles se conectan primero: un dato inesperado no debe dejar la app sin respuesta
     setupEventListeners();
+    // Cada cambio de nota se envía a la hoja; varios cambios seguidos salen en un solo envío
+    store.onNotesChanged(debounce(() => api.syncNotes(), 400));
     window.addEventListener('online', () => {
         ui.updateSyncBadge();
         api.syncOfflineQueue();
+        api.syncNotes();
     });
     window.addEventListener('offline', () => ui.updateSyncBadge());
 
@@ -313,6 +316,13 @@ function setupEventListeners() {
                 && editedRecord.id_item === record.id_item
                 && parsePrice(editedRecord.prix) !== null;
             record.prix = keepsStoredPrice ? editedRecord.prix : (charts.getCatalogPrice(record) ?? "");
+
+            // Número de bon o tournée vacío o con una forma rara (p. ej. una cifra de más): se pide confirmación
+            const numberWarnings = docNumberWarnings(record, store.getAllRecords());
+            if (numberWarnings.length > 0) {
+                const keepGoing = await ui.showConfirm(`⚠️ ${numberWarnings.join(' ')} Voulez-vous enregistrer quand même ?`);
+                if (!keepGoing) return;
+            }
 
             const historyData = store.getHistory();
             if (historyData.length > 0 && !store.editingRecordUuid) {

@@ -293,3 +293,34 @@ test('las celdas de fecha se envían como AAAA-MM-DD en la zona horaria de la ho
     const paris = setup([dated('u1', new Date('2026-09-30T22:00:00Z'))], null, 'Europe/Paris');
     assert.equal(paris.get().records[0].date, '2026-10-01');
 });
+
+test('syncNotes crea la pestaña Notes, guarda, actualiza y borra notas', () => {
+    const s = setup();
+    const note = { id: 'n1', text: 'Changer le ballast', color: 'note-yellow', completed: false, timestamp: '2026-11-13T02:00:00.000Z' };
+    let result = s.post({ action: 'syncNotes', operations: [{ op: 'save', id: 'n1', note }, { op: 'save', id: 'n2', note: { ...note, id: 'n2', text: 'Autre' } }] });
+    assert.equal(result.status, 'success');
+    assert.deepEqual(s.sheets.Notes.rows[0], ['Id', 'Texte', 'Couleur', 'Terminée', 'Créée le']);
+    assert.equal(s.sheets.Notes.rows.length, 3);
+    assert.deepEqual(result.notes.map(n => n.id), ['n1', 'n2']);
+
+    result = s.post({ action: 'syncNotes', operations: [{ op: 'save', id: 'n1', note: { ...note, completed: true } }, { op: 'delete', id: 'n2' }] });
+    assert.equal(s.sheets.Notes.rows.length, 2);
+    assert.equal(result.notes[0].completed, true);
+    assert.equal(result.notes[0].text, 'Changer le ballast');
+    assert.equal(s.lock.released, s.lock.taken);
+});
+
+test('las notas llegan con getData y una nota que empieza por "-" no se guarda como fórmula', () => {
+    const s = setup();
+    assert.deepEqual(s.get().notes, []);
+    s.post({ action: 'syncNotes', operations: [{ op: 'save', id: 'n1', note: { id: 'n1', text: '- acheter 10 F32T8', completed: false } }] });
+    assert.equal(s.sheets.Notes.rows[1][1], "'- acheter 10 F32T8");
+    assert.equal(s.get().notes.length, 1);
+});
+
+test('syncNotes no toca las columnas que la app no conoce', () => {
+    const s = setup();
+    s.sheets.Notes = new (s.sheets.Registros.constructor)('Notes', [['Id', 'Texte', 'Couleur', 'Terminée', 'Créée le', 'Responsable'], ['n1', 'Vieux', 'note-blue', false, 'x', 'Michel']]);
+    s.post({ action: 'syncNotes', operations: [{ op: 'save', id: 'n1', note: { id: 'n1', text: 'Nouveau', completed: true } }] });
+    assert.deepEqual(s.sheets.Notes.rows[1].slice(1), ['Nouveau', 'note-blue', true, '', 'Michel']);
+});

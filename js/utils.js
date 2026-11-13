@@ -193,6 +193,24 @@ export function etageKey(record) {
     return String(record.etage ?? '').trim();
 }
 
+// Las cabinas de ascensor ("ASC. # 22") no son pisos: en las estadísticas se agrupan en "Ascenseurs"
+export const ELEVATOR_GROUP = 'Ascenseurs';
+
+export function isElevator(etage) {
+    return /^asc/i.test(String(etage ?? '').trim());
+}
+
+// Piso de un registro para las estadísticas: el piso tal cual, o "Ascenseurs" para cualquier cabina
+export function etageGroupKey(record) {
+    const etage = etageKey(record);
+    return isElevator(etage) ? ELEVATOR_GROUP : etage;
+}
+
+// Nombre visible de un piso: "Étage 2", "Étage SS1"... y "Ascenseurs" sin el prefijo
+export function etageLabel(key) {
+    return key === ELEVATOR_GROUP ? ELEVATOR_GROUP : `Étage ${key}`;
+}
+
 export const DOC_LABELS = { bon: 'Bon de travail', tournee: 'Tournée', soumission: 'Soumission' };
 
 // Tipo y número del bon, la tournée o la soumission de un registro; null si la tarea no lleva número.
@@ -211,6 +229,42 @@ export function docReference(record) {
     const own = { bon: record.num_bon, tournee: record.num_tache, soumission: record.num_soumission }[kind];
     const number = String(own || record.num_bon || record.num_tache || record.num_soumission || '').trim();
     return { kind, number };
+}
+
+const DOC_NUMBER_NAMES = {
+    bon: { one: 'bon de travail', many: 'bons de travail' },
+    tournee: { one: 'tournée', many: 'tournées' },
+    soumission: { one: 'soumission', many: 'soumissions' }
+};
+
+// Avisos sobre el número de bon, tournée o soumission de un registro antes de guardarlo.
+// Avisa si falta, si lleva caracteres inesperados, o si su cantidad de cifras no es la habitual
+// para ese tipo (la habitual se aprende de los registros existentes: al menos 10 y el 60 % con el mismo largo).
+// Un número como "112492734-45" se mide por su parte antes del guion.
+export function docNumberWarnings(record, existing = []) {
+    const doc = docReference(record);
+    if (!doc) return [];
+    const own = { bon: record.num_bon, tournee: record.num_tache, soumission: record.num_soumission }[doc.kind];
+    const number = String(own ?? '').trim();
+    const names = DOC_NUMBER_NAMES[doc.kind];
+    if (!number) return [`Le numéro de ${names.one} est vide.`];
+    if (!/^\d+(-\d+)?$/.test(number)) return [`Le numéro de ${names.one} « ${number} » contient des caractères inattendus.`];
+
+    const lengthCounts = {};
+    let samples = 0;
+    existing.forEach(other => {
+        const ref = docReference(other);
+        if (!ref || ref.kind !== doc.kind || !/^\d+(-\d+)?$/.test(ref.number)) return;
+        const length = ref.number.split('-')[0].length;
+        lengthCounts[length] = (lengthCounts[length] || 0) + 1;
+        samples += 1;
+    });
+    const [usual, count] = Object.entries(lengthCounts).sort((a, b) => b[1] - a[1])[0] || [];
+    const digits = number.split('-')[0].length;
+    if (samples >= 10 && count / samples >= 0.6 && digits !== Number(usual)) {
+        return [`Le numéro de ${names.one} « ${number} » a ${digits} chiffres ; les ${names.many} en ont habituellement ${usual}.`];
+    }
+    return [];
 }
 
 // Bon de travail y tournées distintos por mes. Cada bon o tournée genera varias filas (una por
@@ -411,7 +465,7 @@ export function monthlyReport(records, monthKey) {
         lines: inMonth.length,
         bons: docs.totalBon,
         tournees: docs.totalTournee,
-        etages: rankBy(inMonth.filter(record => etageKey(record)), etageKey),
+        etages: rankBy(inMonth.filter(record => etageKey(record)), etageGroupKey),
         references: rankBy(inMonth, referenceLabel),
         categories: rankBy(inMonth, record => String(record.categorie ?? '').trim() || 'Inconnu'),
         locataires: rankBy(inMonth, locataireKey)
