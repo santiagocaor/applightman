@@ -34,6 +34,7 @@ import {
     naturalCompare,
     parsePrice,
     parseRecordDate,
+    toDateOnly,
     recordMonthKey,
     referenceKey,
     weekdayTotals
@@ -556,3 +557,27 @@ test('el color de un tipo de tarea no depende de su tamaño ni de la gráfica', 
     assert.ok(!categoryColors.includes(taskColor('Tournée')));
 });
 
+
+test('toDateOnly recupera el día escrito en la hoja, sea cual sea su zona horaria', () => {
+    // Medianoche del 1 de octubre en distintas zonas, tal como la envía una versión antigua de Apps Script
+    assert.equal(toDateOnly('2026-10-01T04:00:00.000Z'), '2026-10-01'); // Montreal, horario de verano
+    assert.equal(toDateOnly('2026-12-01T05:00:00.000Z'), '2026-12-01'); // Montreal, horario de invierno
+    assert.equal(toDateOnly('2026-10-01T00:00:00.000Z'), '2026-10-01'); // GMT
+    assert.equal(toDateOnly('2026-09-30T22:00:00.000Z'), '2026-10-01'); // París
+    assert.equal(toDateOnly('2026-10-01T07:00:00.000Z'), '2026-10-01'); // Vancouver
+    assert.equal(toDateOnly('2026-09-30T18:30:00.000Z'), '2026-10-01'); // India (UTC+5:30)
+});
+
+test('toDateOnly deja igual las fechas simples y lo que no reconoce', () => {
+    assert.equal(toDateOnly('2026-10-01'), '2026-10-01');
+    assert.equal(toDateOnly(' 2026-10-01 '), '2026-10-01');
+    assert.equal(toDateOnly(''), '');
+    assert.equal(toDateOnly(null), '');
+    assert.equal(toDateOnly(undefined), '');
+    assert.equal(toDateOnly('pas une date'), 'pas une date');
+});
+
+test('toDateOnly lee como fecha local un instante con hora real', () => {
+    // 22:37 en Montreal el 4 de noviembre: sigue siendo el 4 aquí
+    assert.equal(toDateOnly('2026-11-05T03:37:12.000Z'), '2026-11-04');
+});

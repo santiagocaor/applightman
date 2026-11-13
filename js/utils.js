@@ -85,6 +85,25 @@ export function localDateString(date = new Date()) {
     return `${y}-${m}-${d}`;
 }
 
+// Fecha de un registro como "AAAA-MM-DD", el mismo día en cualquier teléfono.
+// Una versión antigua de Apps Script envía las celdas de fecha como un instante UTC: la medianoche en la zona
+// horaria de la hoja (p. ej. "2026-10-01T04:00:00.000Z" para Montreal, o "...T00:00:00.000Z" para GMT).
+// Leído con la zona del teléfono, ese instante puede caer el día anterior. La medianoche de cualquier zona
+// entre UTC-12 y UTC+12 queda a menos de 12 horas de las 00:00 UTC del mismo día, así que sumando 12 horas
+// y tomando el día UTC se recupera el día escrito en la hoja. Solo se aplica a instantes en hora exacta
+// (o en cuarto de hora), que es como llegan las fechas; cualquier otra hora se lee como fecha local.
+export function toDateOnly(value) {
+    if (value === null || value === undefined) return '';
+    const text = String(value).trim();
+    if (text === '' || /^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    const isInstant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text);
+    const d = isInstant ? new Date(text) : null;
+    if (!d || isNaN(d)) return text;
+    const onTheHour = d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0 && d.getUTCMinutes() % 15 === 0;
+    if (!onTheHour) return localDateString(d);
+    return new Date(d.getTime() + 12 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
 // new Date('YYYY-MM-DD') se interpreta en UTC y cae en el día anterior en América; aquí se lee como fecha local
 export function parseRecordDate(value) {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? '').trim());

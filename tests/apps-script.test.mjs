@@ -50,7 +50,7 @@ const HEADERS = ['Date', 'Type de tâche', 'Tournée', 'Bon de travail', 'Soumis
 const col = (name) => HEADERS.indexOf(name);
 const row = (uuid, prix = '=VLOOKUP(K2)') => ['2026-08-01', 'Tournée', '1', '', '', 'L', 3, 'Cat', 'Desc', 2, 'A1', prix, 'n', uuid];
 
-function setup(records = [], token = null) {
+function setup(records = [], token = null, timeZone = 'America/Toronto') {
     const sheets = {
         Registros: new FakeSheet('Registros', [HEADERS, ...records]),
         Opciones: new FakeSheet('Opciones', [['Id', 'Description', 'Catégorie', 'Prix', 'Stock'], ['A1', 'Desc', 'Cat', 5, 10]]),
@@ -71,6 +71,7 @@ function setup(records = [], token = null) {
     const context = vm.createContext({
         SpreadsheetApp: {
             getActiveSpreadsheet: () => ({
+                getSpreadsheetTimeZone: () => timeZone,
                 getSheetByName: (name) => sheets[name] || null,
                 getSheets: () => Object.values(sheets),
                 insertSheet: (name) => (sheets[name] = new FakeSheet(name))
@@ -78,7 +79,11 @@ function setup(records = [], token = null) {
         },
         PropertiesService: { getScriptProperties: () => ({ getProperty: () => token }) },
         LockService: { getScriptLock: () => lock },
-        Utilities: { getUuid: () => `gen-${++generated}` },
+        Utilities: {
+            getUuid: () => `gen-${++generated}`,
+            // Igual que Apps Script para el formato 'yyyy-MM-dd': el día en la zona indicada
+            formatDate: (date, zone) => new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
+        },
         ContentService: {
             MimeType: { JSON: 'json' },
             createTextOutput: (text) => ({ text, setMimeType() { return this; } })
@@ -278,4 +283,13 @@ test('la copia semanal crea una copia nueva y manda a la papelera solo las más 
     assert.deepEqual(trashed, ['Lightman - copie 2026-01']);
     assert.ok(files.some(file => file.name === 'Lightman - copie 2026-11-09 03-00'));
     assert.equal(files.find(file => file.name === 'Otro archivo.pdf').trashed, false);
+});
+
+test('las celdas de fecha se envían como AAAA-MM-DD en la zona horaria de la hoja', () => {
+    const dated = (uuid, date) => { const r = row(uuid); r[col('Date')] = date; return r; };
+    // Medianoche del 1 de octubre en la zona de cada hoja
+    const montreal = setup([dated('u1', new Date('2026-10-01T04:00:00Z')), dated('u2', '2026-10-02')]);
+    assert.deepEqual(montreal.get().records.map(r => r.date), ['2026-10-02', '2026-10-01']);
+    const paris = setup([dated('u1', new Date('2026-09-30T22:00:00Z'))], null, 'Europe/Paris');
+    assert.equal(paris.get().records[0].date, '2026-10-01');
 });
