@@ -152,13 +152,15 @@
                         <input type="text" id="note" name="note" placeholder="Ajouter une note ou précision">
                     </div>
 
-                    <div class="form-group keep-visit">
-                        <label for="keep-visit" class="keep-visit-label">
-                            <input type="checkbox" id="keep-visit">
-                            <span>Enchaîner les lignes : garder la date, la tâche, le numéro, le locataire et l'étage après l'enregistrement</span>
+                    <div class="keep-visit-row">
+                        <label for="keep-visit" class="keep-visit-switch">
+                            <input type="checkbox" id="keep-visit" role="switch" aria-describedby="keep-visit-hint">
+                            <span class="switch-track" aria-hidden="true"></span>
+                            <span>Enchaîner les lignes</span>
                         </label>
-                        <button type="button" id="clear-form-btn" class="quick-date-btn" style="margin-top: 0.6rem;">Vider le formulaire</button>
+                        <button type="button" id="clear-form-btn" class="quick-date-btn" aria-label="Vider le formulaire" title="Vider le formulaire">Vider</button>
                     </div>
+                    <p id="keep-visit-hint" class="keep-visit-hint">Après l'enregistrement, la date, la tâche, le numéro, le locataire et l'étage restent remplis.</p>
 
                     <div class="form-actions">
                         <button type="submit" class="btn-primary">

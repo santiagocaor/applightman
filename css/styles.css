@@ -927,7 +927,7 @@ body {
     bottom: -1px; /* Just slightly overlap */
     background: linear-gradient(to top, var(--bg-card) 85%, transparent);
     padding: 1.5rem 0 0.5rem;
-    margin-top: 1rem;
+    margin-top: 0;
     z-index: 10;
     /* pointer-events removed: was blocking button clicks */
 }
@@ -949,7 +949,7 @@ body {
     gap: 0.5rem;
     transition: background-color var(--transition-snappy), box-shadow var(--transition-snappy), transform var(--transition-snappy);
     box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.3), 0px 1px 3px 1px rgba(0, 0, 0, 0.15); /* M3 Elevation 1 */
-    margin-top: 1.5rem;
+    margin-top: 0;
     position: relative;
     overflow: hidden;
 }
@@ -969,6 +969,8 @@ body {
     
     /* Elements that should span full width */
     .form-group:has(#note),
+    .keep-visit-row,
+    .keep-visit-hint,
     .form-actions {
         grid-column: 1 / -1;
     }
@@ -1583,22 +1585,90 @@ body {
     color: var(--warning, #f59e0b);
 }
 
-/* --- Enchaîner les lignes --- */
-.keep-visit-label {
+/* --- Enchaîner les lignes: interruptor compacto en una sola línea, con "Vider le formulaire" al lado --- */
+.keep-visit-row {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    margin: 0.25rem 0 0.75rem;
+}
+
+.keep-visit-switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
     gap: 0.6rem;
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
     cursor: pointer;
 }
 
-.keep-visit-label input {
-    width: 1.2rem;
-    height: 1.2rem;
-    margin-top: 0.1rem;
+/* La casilla real queda invisible pero sigue funcionando con el teclado y los lectores de pantalla */
+.keep-visit-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+}
+
+.switch-track {
+    position: relative;
     flex: 0 0 auto;
+    width: 2.5rem;
+    height: 1.4rem;
+    border-radius: 999px;
+    background: var(--border-color);
+    transition: background-color 0.2s ease;
+}
+
+.switch-track::after {
+    content: '';
+    position: absolute;
+    top: 0.15rem;
+    left: 0.15rem;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s ease;
+}
+
+.keep-visit-switch input:checked + .switch-track {
+    background: var(--primary);
+}
+
+.keep-visit-switch input:checked + .switch-track::after {
+    transform: translateX(1.1rem);
+}
+
+.keep-visit-switch input:focus-visible + .switch-track {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* La explicación solo aparece con el interruptor activado */
+.keep-visit-hint {
+    display: none;
+    margin: -0.4rem 0 0.75rem;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    color: var(--text-secondary);
+}
+
+.keep-visit-row:has(input:checked) + .keep-visit-hint {
+    display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .switch-track,
+    .switch-track::after {
+        transition: none;
+    }
 }
 
 /* --- Rapport mensuel imprimible --- */
