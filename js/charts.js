@@ -1,5 +1,5 @@
 // js/charts.js
-import { taskColor, NEUTRAL_COLORS, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, incompleteMonths, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, etageGroupKey, etageLabel, ELEVATOR_GROUP, uniqueDocsByMonth, recordMonths, monthlyReport, monthlySeries, previousMonthKey, monthlyTrend } from './utils.js';
+import { getCategoryColor, taskColor, NEUTRAL_COLORS, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, incompleteMonths, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, etageGroupKey, etageLabel, ELEVATOR_GROUP, uniqueDocsByMonth, recordMonths, monthlyReport, monthlySeries, previousMonthKey, monthlyTrend } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -345,12 +345,8 @@ export function updateDashboard() {
             ui.elements.filterHistoryMonth.value = sortedMonths[index] || 'all';
         } else if (canvasId === 'taskTypeEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = taskTypeEvolution.months[index] || 'all';
-        } else if (canvasId.startsWith('categoryEvolutionChart') && ui.elements.filterHistoryMonth) {
-            // Mini gráfica de una categoría: el historial se abre en ese mes y esa categoría
+        } else if (canvasId === 'categoryEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = categoryEvolution.months[index] || 'all';
-            if (ui.elements.filterHistoryCategorie) {
-                ui.elements.filterHistoryCategorie.value = chart.canvas.dataset.category || 'all';
-            }
         } else if (canvasId === 'docsEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = docsEvolution.months[index] || 'all';
         } else if (canvasId === 'topEtagesChart' && ui.elements.filterHistoryEtage) {
@@ -556,7 +552,13 @@ export function updateDashboard() {
     // Évolution mensuelle par catégorie: una pequeña gráfica de barras por categoría, con la misma escala,
     // así cada valor lleva su número (en barras apiladas los segmentos pequeños no tenían sitio)
     const categoryEvolution = monthlyByCategory(dashboardRecords, { fillGaps: true });
-    renderCategoryPanels(categoryEvolution, { isDarkMode, textColor, onClick: handleChartClick });
+    renderGroupEvolution('categoryEvolutionChart', categoryEvolution.months, categoryEvolution.categories, categoryEvolution.data, {
+        colorFor: (name) => getCategoryColor(name, isDarkMode),
+        labelColorFor: (color) => readableLabelColor(color, isDarkMode),
+        pointStyles: true,
+        textColor,
+        onClick: handleChartClick
+    });
 
     renderLocataireEvolution(dashboardRecords);
     renderEtageEvolution(dashboardRecords);
@@ -631,25 +633,58 @@ function monthlyLineStyle(color) {
 // así dos líneas cercanas no se pisan. Debajo del 0 queda un margen (sin marcas) para esas etiquetas.
 function lineValueLabels(seriesValues, textColor) {
     const maxValue = Math.max(1, ...seriesValues.flat().map(v => Number(v) || 0));
-    const position = (ctx) => {
-        if (seriesValues.length < 2) return 'top';
-        const order = seriesValues
-            .map((values, index) => [Number(values[ctx.dataIndex]) || 0, index])
-            .sort((x, y) => y[0] - x[0] || x[1] - y[1])
-            .map(([, index]) => index);
-        const rank = order.indexOf(ctx.datasetIndex);
-        if (rank === 0) return 'top';
-        return rank === order.length - 1 ? 'bottom' : 'right';
+    const LABEL_HEIGHT = 15;
+    const LABEL_GAP = 2;
+    const DISTANCE = 15; // del centro del punto al centro de su número (sin tapar el punto)
+
+    // Posición vertical (en píxeles) del número de cada serie en un mes. Cada número va junto a su punto:
+    // el de la serie más baja debajo y los demás encima. Si dos números se tocarían, se separan lo mínimo,
+    // la mitad hacia arriba y la mitad hacia abajo, sin salir del gráfico. Las series ocultas no cuentan.
+    const layout = (chart, index) => {
+        const y = chart.scales.y;
+        const items = seriesValues
+            .map((values, dataset) => ({ dataset, py: y.getPixelForValue(Number(values[index]) || 0) }))
+            .filter(item => chart.isDatasetVisible(item.dataset))
+            .sort((a, b) => a.py - b.py || a.dataset - b.dataset);
+        items.forEach((item, rank) => {
+            item.cy = items.length > 1 && rank === items.length - 1 ? item.py + DISTANCE : item.py - DISTANCE;
+        });
+        items.sort((a, b) => a.cy - b.cy || a.dataset - b.dataset);
+        const top = chart.chartArea.top + LABEL_HEIGHT / 2;
+        const bottom = y.getPixelForValue(y.min) - LABEL_HEIGHT / 2;
+        const spacing = LABEL_HEIGHT + LABEL_GAP;
+        for (let pass = 0; pass < 60; pass++) {
+            let moved = false;
+            for (let k = 1; k < items.length; k++) {
+                const overlap = spacing - (items[k].cy - items[k - 1].cy);
+                if (overlap > 0.1) {
+                    items[k - 1].cy -= overlap / 2;
+                    items[k].cy += overlap / 2;
+                    moved = true;
+                }
+            }
+            items.forEach(item => { item.cy = Math.min(bottom, Math.max(top, item.cy)); });
+            if (!moved) break;
+        }
+        return new Map(items.map(item => [item.dataset, item]));
     };
+    const placed = (ctx) => layout(ctx.chart, ctx.dataIndex).get(ctx.datasetIndex);
+    const surface = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim() || '#ffffff';
     const gridColor = document.documentElement.getAttribute('data-theme') === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+    // Más series, más sitio bajo el 0 para los números que van debajo de su punto
+    const roomBelowZero = seriesValues.length > 1 ? Math.ceil(maxValue * (seriesValues.length > 2 ? 0.18 : 0.14)) : 0;
     return {
         datalabels: {
             display: true,
             anchor: 'center',
-            align: position,
-            offset: 6,
+            align: (ctx) => { const p = placed(ctx); return !p || p.cy < p.py ? 'top' : 'bottom'; },
+            offset: (ctx) => { const p = placed(ctx); return p ? Math.max(0, Math.abs(p.cy - p.py) - LABEL_HEIGHT / 2) : 6; },
             clamp: true,
-            color: (context) => context.dataset.borderColor || textColor,
+            color: (context) => context.dataset.labelColor || context.dataset.borderColor || textColor,
+            // Fondo del color de la tarjeta: el número se lee aunque pase por encima de otra línea
+            backgroundColor: surface,
+            borderRadius: 3,
+            padding: { top: 1, bottom: 0, left: 3, right: 3 },
             font: { weight: 'bold', family: 'Outfit', size: 11 },
             formatter: (value) => fmt(value)
         },
@@ -659,7 +694,7 @@ function lineValueLabels(seriesValues, textColor) {
             y: {
                 beginAtZero: true,
                 grace: '15%',
-                min: seriesValues.length > 1 ? -Math.ceil(maxValue * 0.14) : 0,
+                min: -roomBelowZero,
                 ticks: { callback: (value) => (value < 0 ? '' : fmt(value)) },
                 // Las marcas negativas se quitan y el 0 se mantiene siempre como base del eje
                 afterBuildTicks: (scale) => {
@@ -673,15 +708,51 @@ function lineValueLabels(seriesValues, textColor) {
     };
 }
 
+// Contraste entre dos colores #rrggbb (fórmula WCAG)
+function contrastRatio(a, b) {
+    const luminance = (hex) => {
+        const m = /^#([0-9a-f]{6})$/i.exec(String(hex).trim());
+        if (!m) return 1;
+        const c = [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16) / 255)
+            .map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+}
+
+// Color del número de una línea: el de la línea si se lee bien sobre la tarjeta (4,5:1); si no, el mismo
+// tono oscurecido (en claro) o aclarado (en oscuro) hasta leerse bien, para no perder a qué línea pertenece
+function readableLabelColor(color, isDarkMode) {
+    const surface = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim() || (isDarkMode ? '#1e1e1e' : '#ffffff');
+    const m = /^#([0-9a-f]{6})$/i.exec(color);
+    if (!m) return color;
+    const rgb = [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16));
+    const target = isDarkMode ? 255 : 0;
+    for (let t = 0; t <= 1.0001; t += 0.05) {
+        const mixed = '#' + rgb.map(v => Math.round(v + (target - v) * t).toString(16).padStart(2, '0')).join('');
+        if (contrastRatio(mixed, surface) >= 4.5) return mixed;
+    }
+    return NEUTRAL_COLORS[isDarkMode ? 'dark' : 'light'].ink;
+}
+
+// Formas de punto para distinguir las líneas también sin el color
+const POINT_STYLES = ['circle', 'rect', 'triangle', 'rectRot', 'crossRot', 'star'];
+
 // Gráfica de líneas con un trazo por grupo a lo largo de los meses
-function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textColor, onClick }) {
+function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textColor, onClick, pointStyles = false, labelColorFor = null }) {
     const labels = months.map(key => shortMonthLabel(key));
 
-    const datasets = groups.map((group, index) => ({
-        label: group,
-        data: data[group],
-        ...monthlyLineStyle(colorFor(group, index))
-    }));
+    const datasets = groups.map((group, index) => {
+        const color = colorFor(group, index);
+        return {
+            label: group,
+            data: data[group],
+            ...monthlyLineStyle(color),
+            ...(pointStyles ? { pointStyle: POINT_STYLES[index % POINT_STYLES.length], pointRadius: 5, pointHoverRadius: 7 } : {}),
+            ...(labelColorFor ? { labelColor: labelColorFor(color) } : {})
+        };
+    });
 
     const valueLabels = lineValueLabels(datasets.map(d => d.data), textColor);
     renderChart(canvasId, 'line', labels, [], null, {
@@ -692,78 +763,9 @@ function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textCo
         scales: valueLabels.scales,
         layout: { padding: { top: 20 } },
         plugins: {
-            legend: { display: true },
+            legend: { display: true, labels: { usePointStyle: pointStyles } },
             datalabels: valueLabels.datalabels
         }
-    });
-}
-
-// Una mini gráfica de barras por categoría, todas con la misma escala vertical para que se puedan
-// comparar. Cada barra lleva su número encima, también los 0; los meses incompletos van en tono pálido.
-function renderCategoryPanels({ months, categories, data }, { isDarkMode, textColor, onClick }) {
-    const container = document.getElementById('categoryEvolutionPanels');
-    if (!container) return;
-
-    // Las gráficas anteriores se destruyen antes de reconstruir los lienzos
-    Object.keys(charts).filter(id => id.startsWith('categoryEvolutionChart')).forEach(id => {
-        charts[id].destroy();
-        delete charts[id];
-    });
-    container.innerHTML = '';
-    if (months.length === 0 || categories.length === 0) return;
-
-    const neutral = NEUTRAL_COLORS[isDarkMode ? 'dark' : 'light'];
-    const maxValue = Math.max(1, ...categories.flatMap(category => data[category]));
-    const multiYear = new Set(months.map(key => key.slice(0, 4))).size > 1;
-    // Etiqueta corta: "Juin" (con el año si los datos cruzan de año)
-    const labels = months.map(key => {
-        const [y, m] = key.split('-');
-        return SHORT_MONTH_NAMES[parseInt(m, 10) - 1] + (multiYear ? ` ${y.slice(2)}` : '');
-    });
-
-    categories.forEach((category, index) => {
-        const total = data[category].reduce((sum, v) => sum + (v || 0), 0);
-        const panel = document.createElement('div');
-        panel.className = 'category-panel';
-        const title = document.createElement('h4');
-        title.className = 'category-panel-title';
-        title.textContent = category;
-        const totalEl = document.createElement('span');
-        totalEl.className = 'category-panel-total';
-        totalEl.textContent = `${fmt(total)} ampoules`;
-        title.appendChild(totalEl);
-        const box = document.createElement('div');
-        box.className = 'category-panel-chart';
-        const canvas = document.createElement('canvas');
-        canvas.id = `categoryEvolutionChart-${index}`;
-        canvas.dataset.category = category;
-        canvas.setAttribute('role', 'img');
-        canvas.setAttribute('aria-label', `${category} : ${months.map((key, i) => `${shortMonthLabel(key)} ${fmt(data[category][i])}`).join(', ')}`);
-        box.appendChild(canvas);
-        panel.append(title, box);
-        container.appendChild(panel);
-
-        renderChart(canvas.id, 'bar', labels, data[category], months.map(() => neutral.ink), {
-            datasetLabel: category,
-            onClick,
-            layout: { padding: { top: 4 } },
-            scales: {
-                x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: false, font: { family: 'Outfit', size: 10 } } },
-                // Misma escala en todas las categorías; el eje no se dibuja porque cada barra lleva su número
-                y: { display: false, min: 0, max: Math.ceil(maxValue * 1.25) }
-            },
-            plugins: {
-                legend: { display: false },
-                datalabels: {
-                    anchor: 'end',
-                    align: 'top',
-                    offset: 2,
-                    color: textColor,
-                    font: { weight: 'bold', family: 'Outfit', size: 11 },
-                    formatter: (value) => fmt(value)
-                }
-            }
-        });
     });
 }
 

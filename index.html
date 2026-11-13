@@ -339,10 +339,11 @@
                     <p id="docs-chart-note" class="chart-note hidden-field"></p>
                 </div>
 
-                <div class="card chart-card full-width-card category-panels-card">
+                <div class="card chart-card full-width-card chart-card-tall">
                     <h3>Évolution mensuelle par catégorie</h3>
-                    <p class="chart-note category-panels-note">Un petit graphique par catégorie, tous à la même échelle.</p>
-                    <div id="categoryEvolutionPanels" class="category-panels" role="group" aria-label="Ampoules remplacées chaque mois, un graphique par catégorie de matériel"></div>
+                    <div class="chart-container">
+                        <canvas id="categoryEvolutionChart" role="img" aria-label="Graphique en lignes : ampoules remplacées chaque mois, une ligne par catégorie de matériel"></canvas>
+                    </div>
                 </div>
 
                 <div class="card chart-card full-width-card chart-card-tall">
