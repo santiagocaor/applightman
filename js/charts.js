@@ -1,5 +1,5 @@
 // js/charts.js
-import { taskColor, NEUTRAL_COLORS, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, incompleteMonths, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, etageGroupKey, etageLabel, ELEVATOR_GROUP, uniqueDocsByMonth, recordMonths, monthlyReport, monthlySeries } from './utils.js';
+import { taskColor, NEUTRAL_COLORS, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, incompleteMonths, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, etageGroupKey, etageLabel, ELEVATOR_GROUP, uniqueDocsByMonth, recordMonths, monthlyReport, monthlySeries, previousMonthKey, monthlyTrend } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -804,28 +804,159 @@ function populateReportMonths() {
 
 function reportTable(title, rows, firstColumn, secondColumn = 'Ampoules') {
     if (rows.length === 0) return '';
-    const body = rows.map(row => `<tr><td>${escapeHtml(row.name)}</td><td>${row.total}</td></tr>`).join('');
+    const body = rows.map(row => `<tr><td>${escapeHtml(row.name)}</td><td>${fmt(row.total)}</td></tr>`).join('');
     return `<h2>${escapeHtml(title)}</h2><table><thead><tr><th>${escapeHtml(firstColumn)}</th><th>${escapeHtml(secondColumn)}</th></tr></thead><tbody>${body}</tbody></table>`;
 }
 
-function buildReportHtml(report) {
-    const generated = new Date().toLocaleDateString('fr-CA');
-    const summary = `<table><tbody>
-        <tr><td>Ampoules remplacées</td><td>${report.total}</td></tr>
-        <tr><td>Bons de travail</td><td>${report.bons}</td></tr>
-        <tr><td>Tournées</td><td>${report.tournees}</td></tr>
-        <tr><td>Lignes enregistrées</td><td>${report.lines}</td></tr></tbody></table>`;
-    const etages = report.etages.slice(0, 5).map(item => ({ name: etageLabel(item.name), total: item.total }));
-    return `<h1>Rapport mensuel — ${escapeHtml(reportMonthLabel(report.month))}</h1>
-        ${report.lines === 0 ? '<p>Aucun enregistrement pour ce mois.</p>' : summary
-            + reportTable('Étages les plus actifs', etages, 'Étage')
-            + reportTable('Articles les plus remplacés', report.references.slice(0, 5), 'Article')
-            + reportTable('Par catégorie', report.categories, 'Catégorie')
-            + reportTable('Par locataire', report.locataires.slice(0, 5), 'Locataire')}
-        <p class="report-footer">Généré le ${escapeHtml(generated)} — Lightman</p>`;
+// Colores del informe impreso: siempre los del tema claro, sea cual sea el tema de la app
+const REPORT_COLORS = { current: '#334155', previous: '#b8b6ad', text: '#334155', grid: 'rgba(0, 0, 0, 0.08)' };
+
+// Dibuja una gráfica en un lienzo fuera de la página y la devuelve como imagen, nítida al imprimir
+function chartImage(config, width, height) {
+    if (typeof Chart === 'undefined') return '';
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const chart = new Chart(canvas.getContext('2d'), {
+        ...config,
+        options: {
+            responsive: false,
+            animation: false,
+            devicePixelRatio: 2,
+            locale: 'fr-CA',
+            ...config.options,
+            plugins: { legend: { display: false }, tooltip: { enabled: false }, ...(config.options || {}).plugins }
+        }
+    });
+    const url = canvas.toDataURL('image/png');
+    chart.destroy();
+    return url;
 }
 
-export function printMonthlyReport() {
+const reportFont = { family: 'Outfit, sans-serif', size: 12 };
+const reportLabels = (extra = {}) => ({
+    color: REPORT_COLORS.text,
+    font: { ...reportFont, weight: 'bold' },
+    formatter: (value) => fmt(value),
+    ...extra
+});
+
+// Barras horizontales de un ranking; con `previous`, cada fila lleva también la barra del mes anterior
+function rankingImage(rows, previousRows, width) {
+    const labels = rows.map(row => row.name);
+    const prevOf = (name) => (previousRows ? (previousRows.find(row => row.name === name) || { total: 0 }).total : 0);
+    const datasets = [{ data: rows.map(row => row.total), backgroundColor: REPORT_COLORS.current, borderRadius: 3, barPercentage: 0.8, categoryPercentage: previousRows ? 0.8 : 0.7 }];
+    if (previousRows) datasets.push({ data: labels.map(prevOf), backgroundColor: REPORT_COLORS.previous, borderRadius: 3, barPercentage: 0.8, categoryPercentage: 0.8 });
+    const rowHeight = previousRows ? 28 : 22;
+    return chartImage({
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+            indexAxis: 'y',
+            layout: { padding: { right: 40 } },
+            scales: {
+                x: { beginAtZero: true, grace: '12%', ticks: { font: reportFont, color: REPORT_COLORS.text, precision: 0 }, grid: { color: REPORT_COLORS.grid } },
+                y: { ticks: { font: reportFont, color: REPORT_COLORS.text }, grid: { display: false } }
+            },
+            plugins: { datalabels: reportLabels({ anchor: 'end', align: 'right', offset: 4 }) }
+        }
+    }, width, Math.max(100, rows.length * rowHeight + 40));
+}
+
+// Diferencia con el mes anterior: "+12 (+5 %)", "−3 (−10 %)", "=" o "nouveau"
+function variationText(current, previous) {
+    const diff = current - previous;
+    if (diff === 0) return '=';
+    const sign = diff > 0 ? '+' : '−';
+    const pct = previous > 0 ? ` (${sign}${fmt(Math.round(Math.abs(diff) / previous * 100))} %)` : '';
+    return `${sign}${fmt(Math.abs(diff))}${pct}`;
+}
+
+// hasPrevious es falso si el mes anterior es antes del inicio del historial: entonces no se compara
+function buildReportHtml(report, previous, trend, incomplete, hasPrevious = true) {
+    const generated = new Date().toLocaleDateString('fr-CA');
+    const title = `<h1>Rapport mensuel — ${escapeHtml(reportMonthLabel(report.month))}</h1>`;
+    const footer = `<p class="report-footer">Généré le ${escapeHtml(generated)} — Lightman</p>`;
+    if (report.lines === 0) return `${title}<p>Aucun enregistrement pour ce mois.</p>${footer}`;
+
+    const monthName = reportMonthLabel(report.month);
+    const prevName = reportMonthLabel(previous.month);
+    const partialNote = (key) => {
+        const info = incomplete.get(key);
+        if (!info) return '';
+        return info.kind === 'current'
+            ? `${reportMonthLabel(key)} est le mois en cours (données jusqu'au ${info.day}) : la comparaison n'est pas encore complète.`
+            : `${reportMonthLabel(key)} est incomplet : les données commencent le ${info.day}.`;
+    };
+    const notes = [partialNote(report.month), hasPrevious ? partialNote(previous.month) : ''].filter(Boolean);
+    if (!hasPrevious) notes.push(`L'historique commence en ${monthName} : pas de comparaison avec ${prevName}.`);
+
+    const row = (label, current, prev) => (hasPrevious
+        ? `<tr><td>${label}</td><td>${fmt(current)}</td><td>${fmt(prev)}</td><td>${variationText(current, prev)}</td></tr>`
+        : `<tr><td>${label}</td><td>${fmt(current)}</td><td>—</td><td>—</td></tr>`);
+    const comparison = `<table class="report-comparison"><thead><tr><th></th><th>${escapeHtml(monthName)}</th><th>${escapeHtml(prevName)}</th><th>Variation</th></tr></thead><tbody>
+        ${row('Ampoules remplacées', report.total, previous.total)}
+        ${row('Bons de travail', report.bons, previous.bons)}
+        ${row('Tournées', report.tournees, previous.tournees)}
+        ${row('Lignes enregistrées', report.lines, previous.lines)}</tbody></table>`;
+
+    // 1. Los seis últimos meses: el mes del informe en tinta oscura, los demás en gris (pálidos si están incompletos)
+    const trendImage = chartImage({
+        type: 'bar',
+        data: {
+            labels: trend.map(item => shortMonthLabel(item.month) + (incomplete.has(item.month) ? '*' : '')),
+            datasets: [{
+                data: trend.map(item => item.total),
+                // El mes del informe siempre en tinta oscura; los otros en gris, pálidos si están incompletos ("*")
+                backgroundColor: trend.map(item => (item.month === report.month ? REPORT_COLORS.current : fadeColor(REPORT_COLORS.previous, incomplete.has(item.month)))),
+                borderRadius: 3,
+                maxBarThickness: 90
+            }]
+        },
+        options: {
+            layout: { padding: { top: 22 } },
+            scales: {
+                x: { ticks: { font: reportFont, color: REPORT_COLORS.text }, grid: { display: false } },
+                y: { beginAtZero: true, grace: '10%', ticks: { font: reportFont, color: REPORT_COLORS.text, precision: 0 }, grid: { color: REPORT_COLORS.grid } }
+            },
+            plugins: { datalabels: reportLabels({ anchor: 'end', align: 'top', offset: 2 }) }
+        }
+    }, 720, 150);
+
+    // 2. Categorías: mes del informe frente al anterior
+    const categoryNames = [...new Set([...report.categories, ...previous.categories].map(item => item.name))];
+    const categoryRows = categoryNames
+        .map(name => ({ name, total: (report.categories.find(item => item.name === name) || { total: 0 }).total }))
+        .sort((a, b) => b.total - a.total);
+    const categoryImage = rankingImage(categoryRows, hasPrevious ? previous.categories : null, 720);
+
+    const etages = report.etages.slice(0, 5).map(item => ({ name: etageLabel(item.name), total: item.total }));
+    const etageImage = etages.length ? rankingImage(etages, null, 350) : '';
+    const locataires = report.locataires.slice(0, 5);
+    const locataireImage = locataires.length ? rankingImage(locataires, null, 350) : '';
+    const img = (src, alt) => (src ? `<img src="${src}" alt="${escapeHtml(alt)}">` : '');
+    const legend = hasPrevious
+        ? `<p class="report-legend"><span class="report-swatch report-swatch-current"></span>${escapeHtml(monthName)}<span class="report-swatch report-swatch-previous"></span>${escapeHtml(prevName)}</p>`
+        : '';
+
+    return `${title}
+        <p class="report-subtitle">${hasPrevious ? `Comparaison avec ${escapeHtml(prevName)}` : 'Premier mois de l’historique'}</p>
+        ${comparison}
+        ${notes.length ? `<p class="report-note">${notes.map(escapeHtml).join(' ')}</p>` : ''}
+        <h2>Ampoules par mois${trend.length > 1 ? ` — ${trend.length} derniers mois` : ''}</h2>
+        ${img(trendImage, `Ampoules remplacées par mois : ${trend.map(item => `${shortMonthLabel(item.month)} ${item.total}`).join(', ')}`)}
+        ${trend.some(item => incomplete.has(item.month)) ? '<p class="report-note">* Mois incomplet.</p>' : ''}
+        <h2>Par catégorie</h2>
+        ${legend}
+        ${img(categoryImage, `Ampoules par catégorie, ${monthName} et ${prevName}`)}
+        <div class="report-pair">
+            <div><h2>Étages les plus actifs</h2>${img(etageImage, 'Étages les plus actifs')}</div>
+            <div><h2>Par locataire</h2>${img(locataireImage, 'Ampoules par locataire')}</div>
+        </div>
+        <div class="report-block">${reportTable('Articles les plus remplacés', report.references.slice(0, 5), 'Article')}${footer}</div>`;
+}
+
+export async function printMonthlyReport() {
     const select = document.getElementById('report-month');
     const container = document.getElementById('print-report');
     if (!select || !container || !select.value) {
@@ -833,7 +964,20 @@ export function printMonthlyReport() {
         return;
     }
 
-    container.innerHTML = buildReportHtml(monthlyReport(reportRecords(), select.value));
+    const records = reportRecords();
+    const month = select.value;
+    // Los seis últimos meses, sin los anteriores al primer registro (saldrían en 0 sin serlo)
+    const firstMonth = recordMonths(records).slice(-1)[0] || month;
+    container.innerHTML = buildReportHtml(
+        monthlyReport(records, month),
+        monthlyReport(records, previousMonthKey(month)),
+        monthlyTrend(records, month, 6).filter(item => item.month >= firstMonth),
+        incompleteMonths(records),
+        previousMonthKey(month) >= firstMonth
+    );
+    // Las imágenes de las gráficas deben estar listas antes de abrir el diálogo de impresión
+    await Promise.all([...container.querySelectorAll('img')].map(image => (image.decode ? image.decode().catch(() => {}) : null)));
+
     // La clase solo oculta la app al imprimir (regla @media print): en pantalla no cambia nada
     const cleanup = () => {
         document.body.classList.remove('printing-report');

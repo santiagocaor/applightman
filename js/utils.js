@@ -231,6 +231,44 @@ export function docReference(record) {
     return { kind, number };
 }
 
+// Registros ya guardados que podrían ser el mismo reemplazo registrado dos veces: mismo día, misma
+// referencia, mismo piso y mismo número de bon, tournée o soumission (sin número: mismo tipo de tarea y
+// mismo locataire). La cantidad no cuenta, así se detecta también el mismo reemplazo con otra cantidad.
+// Se compara con todos los registros que tiene la app (los de la hoja y los pendientes), no solo con los
+// de este teléfono. El registro que se está editando no se compara consigo mismo.
+export function findPossibleDuplicates(record, existing = [], ignoreUuid = '') {
+    const clean = (value) => String(value ?? '').replace(/#/g, '').trim().toLowerCase();
+    const refOf = (r) => clean(r.id_item) || clean(r.description);
+    const day = toDateOnly(record.fecha || record.date);
+    const ref = refOf(record);
+    if (!day || !ref) return [];
+    const doc = docReference(record);
+    return existing.filter(other => {
+        if (ignoreUuid && other.uuid === ignoreUuid) return false;
+        if (toDateOnly(other.fecha || other.date) !== day || refOf(other) !== ref) return false;
+        if (clean(other.etage) !== clean(record.etage)) return false;
+        const otherDoc = docReference(other);
+        if (doc && doc.number) {
+            return Boolean(otherDoc) && otherDoc.kind === doc.kind && clean(otherDoc.number) === clean(doc.number);
+        }
+        return clean(other.tache) === clean(record.tache) && clean(other.locataire) === clean(record.locataire);
+    });
+}
+
+// Descripción corta de una línea para el aviso: "22 oct. 2026 · Bon de travail 119275977 · Étage 18 · F32T8 · 36 ampoules"
+export function describeRecordLine(record) {
+    const date = parseRecordDate(toDateOnly(record.fecha || record.date));
+    const doc = docReference(record);
+    const qty = Number(record.quantite || 0);
+    return [
+        isNaN(date) ? '' : date.toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' }),
+        doc ? `${DOC_LABELS[doc.kind]}${doc.number ? ` ${doc.number}` : ''}` : String(record.tache ?? '').trim(),
+        etageKey(record) ? `Étage ${etageKey(record)}` : '',
+        String(record.description ?? '').trim() || String(record.id_item ?? '').trim(),
+        `${qty} ampoule${qty > 1 ? 's' : ''}`
+    ].filter(Boolean).join(' · ');
+}
+
 const DOC_NUMBER_NAMES = {
     bon: { one: 'bon de travail', many: 'bons de travail' },
     tournee: { one: 'tournée', many: 'tournées' },
@@ -470,6 +508,27 @@ export function monthlyReport(records, monthKey) {
         categories: rankBy(inMonth, record => String(record.categorie ?? '').trim() || 'Inconnu'),
         locataires: rankBy(inMonth, locataireKey)
     };
+}
+
+// Mes anterior a una clave AAAA-MM ("2026-01" -> "2025-12")
+export function previousMonthKey(key) {
+    const index = monthIndex(key) - 1;
+    return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`;
+}
+
+// Total de ampoules de los `count` meses que terminan en monthKey (incluido), con 0 en los meses sin registros
+export function monthlyTrend(records, monthKey, count = 6) {
+    const totals = {};
+    records.forEach(record => {
+        const key = recordMonthKey(record);
+        if (key) totals[key] = (totals[key] || 0) + Number(record.quantite || 0);
+    });
+    const end = monthIndex(monthKey);
+    return Array.from({ length: count }, (_, i) => {
+        const index = end - count + 1 + i;
+        const month = `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`;
+        return { month, total: totals[month] || 0 };
+    });
 }
 
 // Meses seguidos desde el primero hasta el último, incluidos los que no tienen registros

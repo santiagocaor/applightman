@@ -1634,6 +1634,83 @@ body {
     text-align: right;
 }
 
+#print-report {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+#print-report img {
+    display: block;
+    width: 100%;
+    height: auto;
+    break-inside: avoid;
+}
+
+#print-report .report-subtitle,
+#print-report .report-note,
+#print-report .report-legend {
+    font-size: 0.85rem;
+    color: #555;
+    margin: 0.25rem 0 0.5rem;
+}
+
+#print-report .report-comparison td:not(:first-child),
+#print-report .report-comparison th:not(:first-child) {
+    text-align: right;
+}
+
+#print-report .report-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    break-inside: avoid;
+}
+
+#print-report .report-swatch {
+    display: inline-block;
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 2px;
+    margin: 0 0.35rem 0 0.9rem;
+    vertical-align: -1px;
+}
+
+#print-report .report-swatch:first-child {
+    margin-left: 0;
+}
+
+#print-report .report-swatch-current {
+    background: #334155;
+}
+
+#print-report .report-swatch-previous {
+    background: #b8b6ad;
+}
+
+#print-report h2 {
+    break-after: avoid;
+}
+
+/* Un bloque (título + tabla) nunca se corta entre dos páginas */
+#print-report .report-block {
+    break-inside: avoid;
+}
+
+@media print {
+    #print-report h2 {
+        margin: 0.9rem 0 0.3rem;
+    }
+
+    #print-report th,
+    #print-report td {
+        padding: 0.2rem 0.5rem;
+    }
+
+    #print-report .report-footer {
+        margin-top: 0.75rem;
+    }
+}
+
 #print-report .report-footer {
     margin-top: 1.5rem;
     font-size: 0.8rem;

@@ -3,7 +3,7 @@ import * as store from './store.js';
 import * as ui from './ui.js';
 import * as charts from './charts.js';
 import * as api from './api.js';
-import { generateUUID, debounce, localDateString, parsePrice, docNumberWarnings } from './utils.js';
+import { generateUUID, debounce, localDateString, parsePrice, docNumberWarnings, findPossibleDuplicates, describeRecordLine } from './utils.js';
 
 const ThemeManager = {
     init() {
@@ -324,36 +324,12 @@ function setupEventListeners() {
                 if (!keepGoing) return;
             }
 
-            const historyData = store.getHistory();
-            if (historyData.length > 0 && !store.editingRecordUuid) {
-                const duplicate = historyData.find(oldRecord => {
-                    const oldDateRaw = oldRecord.fecha || oldRecord.date;
-                    const oldDateStr = String(oldDateRaw || "").substring(0, 10);
-                    const newDateStr = String(record.fecha || "").substring(0, 10);
-
-                    const clean = (val) => String(val || "").replace(/#/g, "").trim().toLowerCase();
-
-                    const descOrIdMatch = record.id_item ? 
-                        clean(oldRecord.id_item) === clean(record.id_item) : 
-                        clean(oldRecord.description) === clean(record.description);
-
-                    return oldDateStr === newDateStr &&
-                           descOrIdMatch &&
-                           clean(oldRecord.locataire) === clean(record.locataire) &&
-                           clean(oldRecord.etage) === clean(record.etage) &&
-                           clean(oldRecord.tache) === clean(record.tache) &&
-                           String(oldRecord.quantite) === String(record.quantite) &&
-                           clean(oldRecord.num_bon) === clean(record.num_bon) &&
-                           clean(oldRecord.num_tache) === clean(record.num_tache) &&
-                           clean(oldRecord.num_soumission) === clean(record.num_soumission);
-                });
-
-                if (duplicate) {
-                    const isConfirmed = await ui.showConfirm("⚠️ Attention : Un registre identique existe déjà pour cette date. Voulez-vous vraiment l'enregistrer à nouveau ?");
-                    if (!isConfirmed) {
-                        return;
-                    }
-                }
+            // El mismo reemplazo ya registrado (aquí o en otro teléfono), aunque sea con otra cantidad
+            const duplicates = findPossibleDuplicates(record, store.getAllRecords(), store.editingRecordUuid || '');
+            if (duplicates.length > 0) {
+                const others = duplicates.length > 1 ? ` (et ${duplicates.length - 1} autre${duplicates.length > 2 ? 's' : ''})` : '';
+                const isConfirmed = await ui.showConfirm(`⚠️ Cette ligne ressemble à une ligne déjà enregistrée : ${describeRecordLine(duplicates[0])}${others}. Voulez-vous vraiment l'enregistrer ?`);
+                if (!isConfirmed) return;
             }
 
             isSubmitting = true;
