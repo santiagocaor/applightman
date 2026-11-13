@@ -126,13 +126,18 @@ function persistSyncQueue() {
     writeJson('lightman_sync_queue', syncQueue);
 }
 
-// Orden de las categorías para sus colores: primero el catálogo, luego las que solo están en los registros.
-// Así cada categoría conserva su color aunque los filtros cambien lo que se ve.
+// Orden de las categorías para sus colores: de la más usada (tono más oscuro) a la menos usada,
+// contando todos los registros; después, las del catálogo sin registros. Como se cuenta todo,
+// los filtros no cambian el color de una categoría.
 function refreshCategoryOrder() {
+    const totals = {};
+    records.forEach(r => {
+        const cat = String(r.categorie ?? '').trim();
+        if (cat) totals[cat] = (totals[cat] || 0) + Number(r.quantite || 0);
+    });
+    const fromRecords = Object.keys(totals).sort((a, b) => totals[b] - totals[a] || a.localeCompare(b, 'fr'));
     const fromCatalog = appOptions.opciones.map(item => item.categorie);
-    const fromRecords = [...new Set(records.map(r => r.categorie).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b, 'fr'));
-    setCategoryOrder([...fromCatalog, ...fromRecords]);
+    setCategoryOrder([...fromRecords, ...fromCatalog]);
 }
 
 export function setAppOptions(options) {

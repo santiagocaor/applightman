@@ -337,11 +337,10 @@
                     <p id="docs-chart-note" class="chart-note hidden-field"></p>
                 </div>
 
-                <div class="card chart-card full-width-card chart-card-tall">
+                <div class="card chart-card full-width-card category-panels-card">
                     <h3>Évolution mensuelle par catégorie</h3>
-                    <div class="chart-container">
-                        <canvas id="categoryEvolutionChart" role="img" aria-label="Graphique en barres empilées : ampoules remplacées chaque mois, par catégorie de matériel"></canvas>
-                    </div>
+                    <p class="chart-note category-panels-note">Un petit graphique par catégorie, tous à la même échelle.</p>
+                    <div id="categoryEvolutionPanels" class="category-panels" role="group" aria-label="Ampoules remplacées chaque mois, un graphique par catégorie de matériel"></div>
                 </div>
 
                 <div class="card chart-card full-width-card chart-card-tall">
@@ -457,41 +456,6 @@
                     </div>
                 </div>
 
-                <div class="card chart-card stats-table-card full-width-card" style="grid-column: 1 / -1; min-height: auto; margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
-                    <div id="stats-table-header" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; flex-wrap: wrap; gap: 0.75rem;">
-                        <div>
-                            <h3 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center;">
-                                Consommation détaillée par référence
-                            </h3>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="search-input-container" style="min-width: 170px; height: 34px;">
-                                <span aria-hidden="true" class="material-symbols-rounded search-icon" style="font-size: 0.8rem;">search</span>
-                                <input type="text" id="search-stats-table" aria-label="Filtrer par description" placeholder="Filtrer description..." style="font-size: 0.85rem; padding-left: 2rem; height: 34px;">
-                            </div>
-                            <button id="btn-toggle-stats-table" type="button" aria-expanded="false" aria-controls="stats-table-body-container" style="background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s;">
-                                <span id="text-toggle-stats-table">Afficher</span>
-                                <span id="icon-toggle-stats-table" aria-hidden="true" class="material-symbols-rounded" style="transition: transform 0.3s ease; font-size: 1.1rem; color: var(--primary);">expand_more</span>
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="stats-table-body-container" style="display: none; margin-top: 1rem; transition: all 0.3s ease;" role="region" aria-label="Consommation détaillée par référence">
-                        <div id="stats-table-wrapper" style="overflow-x: auto; max-height: 420px; overflow-y: auto; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                            <table class="stats-custom-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
-                                <thead>
-                                    <tr style="background: var(--input-bg); border-bottom: 2px solid var(--border-color); position: sticky; top: 0; z-index: 5;">
-                                        <th style="padding: 0.75rem 1rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; font-size: 0.75rem;">Description</th>
-                                        <th style="padding: 0.75rem 1rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; font-size: 0.75rem; text-align: right;">Quantité</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="stats-table-body">
-                                    <!-- Filas inyectadas por JS -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
 
             </div>
         </section>

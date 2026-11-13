@@ -1,12 +1,9 @@
 // js/charts.js
-import { getCategoryColor, taskColor, NEUTRAL_COLORS, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, incompleteMonths, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, uniqueDocsByMonth, recordMonths, monthlyReport, monthlySeries } from './utils.js';
+import { taskColor, NEUTRAL_COLORS, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, incompleteMonths, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, uniqueDocsByMonth, recordMonths, monthlyReport, monthlySeries } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
 let charts = {};
-let statsTableSearchQuery = '';
-let isStatsTableCollapsed = true;
-let lastSelectedEtage = null;
 
 // Filtros de Statistiques: nombre del parámetro de store.filterRecords, control y texto del resumen
 const STATS_FILTERS = [
@@ -34,7 +31,8 @@ function shortMonthLabel(key) {
 
 // Números con el formato del francés de Canadá: 1 233 y 233,8
 const fmt = (value, digits = 0) => Number(value || 0).toLocaleString('fr-CA', { minimumFractionDigits: digits, maximumFractionDigits: digits });
-const fmtLabel = (value) => value > 0 ? fmt(value) : '';
+// Número de una barra o un punto: también el 0, que es un dato
+const fmtLabel = (value) => (value === null || value === undefined ? '' : fmt(value));
 
 const LONG_MONTH_NAMES = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
@@ -327,10 +325,8 @@ export function updateDashboard() {
 
     const textColor = isDarkMode ? '#94a3b8' : '#475569';
 
-    const topProductsColors = sortedProducts.map(p => {
-        const cat = productCategoryMap[p];
-        return getCategoryColor(cat, isDarkMode);
-    });
+    // Ranking: el n.º 1 en tinta oscura y los demás en gris, como pisos y locataires
+    const topProductsColors = sortedProducts.map((_, index) => (index === 0 ? neutral.ink : neutral.muted));
 
     const handleChartClick = (e, activeEls) => {
         if (!activeEls.length) return;
@@ -353,8 +349,12 @@ export function updateDashboard() {
             ui.elements.filterHistoryMonth.value = sortedMonths[index] || 'all';
         } else if (canvasId === 'taskTypeEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = taskTypeEvolution.months[index] || 'all';
-        } else if (canvasId === 'categoryEvolutionChart' && ui.elements.filterHistoryMonth) {
+        } else if (canvasId.startsWith('categoryEvolutionChart') && ui.elements.filterHistoryMonth) {
+            // Mini gráfica de una categoría: el historial se abre en ese mes y esa categoría
             ui.elements.filterHistoryMonth.value = categoryEvolution.months[index] || 'all';
+            if (ui.elements.filterHistoryCategorie) {
+                ui.elements.filterHistoryCategorie.value = chart.canvas.dataset.category || 'all';
+            }
         } else if (canvasId === 'docsEvolutionChart' && ui.elements.filterHistoryMonth) {
             ui.elements.filterHistoryMonth.value = docsEvolution.months[index] || 'all';
         } else if (canvasId === 'topEtagesChart' && ui.elements.filterHistoryEtage) {
@@ -431,29 +431,10 @@ export function updateDashboard() {
         datasetLabel: 'Ampoules',
         onClick: handleChartClick,
         fullDescriptions: topProductsFullDesc,
+        // Margen a la derecha para que el número de la barra más larga no se corte
+        scales: { x: { grace: '15%' } },
         plugins: {
-            legend: {
-                display: true,
-                position: 'bottom',
-                onClick: () => {}, 
-                labels: {
-                    generateLabels: function() {
-                        const uniqueCats = new Set();
-                        sortedProducts.forEach(p => {
-                            if (productCategoryMap[p]) uniqueCats.add(productCategoryMap[p]);
-                        });
-                        return Array.from(uniqueCats).map((cat, i) => ({
-                            text: cat,
-                            fillStyle: getCategoryColor(cat, isDarkMode),
-                            strokeStyle: getCategoryColor(cat, isDarkMode),
-                            lineWidth: 0,
-                            hidden: false,
-                            index: i,
-                            fontColor: document.documentElement.getAttribute('data-theme') === 'dark' ? '#94a3b8' : '#475569'
-                        }));
-                    }
-                }
-            },
+            legend: { display: false },
             tooltip: {
                 callbacks: {
                     title: function(context) {
@@ -461,6 +442,10 @@ export function updateDashboard() {
                         const code = sortedProducts[index];
                         const desc = context[0].chart.options.fullDescriptions[index] || context[0].label;
                         return code && code !== desc ? `${desc} (${code})` : desc;
+                    },
+                    afterTitle: function(context) {
+                        const category = productCategoryMap[sortedProducts[context[0].dataIndex]];
+                        return category ? `Catégorie : ${category}` : '';
                     }
                 }
             }
@@ -472,25 +457,22 @@ export function updateDashboard() {
     const taskTypeVals = taskTypeKeys.map(k => taskTypeData[k]);
     const taskTypeDoughnutColors = taskTypeKeys.map(k => taskColor(k, isDarkMode));
 
+    const taskTypeTotal = taskTypeVals.reduce((sum, v) => sum + v, 0);
+    const isSmallSlice = (context) => taskTypeTotal > 0 && Number(context.dataset.data[context.dataIndex]) / taskTypeTotal < 0.08;
     renderChart('taskTypeChart', 'doughnut', taskTypeKeys, taskTypeVals, taskTypeDoughnutColors, {
         datasetLabel: 'Ampoules',
         onClick: handleChartClick,
         cutout: '45%', 
         layout: { padding: { top: 20, bottom: 20, left: 40, right: 40 } },
         plugins: {
+            // Todas las porciones llevan su número: dentro si caben, fuera del anillo si son pequeñas
             datalabels: {
-                display: 'auto', 
-                formatter: (value, context) => {
-                    let sum = 0;
-                    const dataArr = context.chart.data.datasets[0].data;
-                    dataArr.forEach(data => sum += Number(data));
-                    if (sum === 0) return '';
-                    const percentageValue = (value * 100 / sum);
-                    const threshold = window.innerWidth < 480 ? 12 : 6;
-                    if (percentageValue < threshold) return '';
-                    return fmt(value);
-                },
-                color: '#ffffff',
+                display: (context) => Number(context.dataset.data[context.dataIndex]) > 0,
+                anchor: (context) => (isSmallSlice(context) ? 'end' : 'center'),
+                align: (context) => (isSmallSlice(context) ? 'end' : 'center'),
+                offset: 4,
+                formatter: (value) => fmt(value),
+                color: (context) => (isSmallSlice(context) ? textColor : '#ffffff'),
                 font: { weight: 'bold', family: 'Outfit', size: window.innerWidth < 480 ? 12 : 14 }
             }
         }
@@ -572,14 +554,10 @@ export function updateDashboard() {
         onClick: handleChartClick
     });
 
-    // Évolution mensuelle par catégorie: barres empilées, une couleur par catégorie; les mois sans remplacement valent 0
+    // Évolution mensuelle par catégorie: una pequeña gráfica de barras por categoría, con la misma escala,
+    // así cada valor lleva su número (en barras apiladas los segmentos pequeños no tenían sitio)
     const categoryEvolution = monthlyByCategory(dashboardRecords, { fillGaps: true });
-    renderStackedMonthly('categoryEvolutionChart', categoryEvolution.months, categoryEvolution.categories, categoryEvolution.data, {
-        colorFor: (name) => getCategoryColor(name, isDarkMode),
-        incomplete,
-        isDarkMode,
-        onClick: handleChartClick
-    });
+    renderCategoryPanels(categoryEvolution, { incomplete, isDarkMode, textColor, onClick: handleChartClick });
 
     renderLocataireEvolution(dashboardRecords);
     renderEtageEvolution(dashboardRecords);
@@ -595,10 +573,12 @@ export function updateDashboard() {
     if (catCard) catCard.style.height = `${catChartHeight + 80}px`;
 
     const catValues = catLabels.map(cat => catCounts[cat]);
-    renderChart('categoryChart', 'bar', catLabels, catValues, catLabels.map(cat => getCategoryColor(cat, isDarkMode)), {
+    // Ranking de categorías con el mismo estilo que los demás rankings (n.º 1 oscuro, resto gris)
+    renderChart('categoryChart', 'bar', catLabels, catValues, catLabels.map((_, index) => (index === 0 ? neutral.ink : neutral.muted)), {
         datasetLabel: 'Ampoules',
         indexAxis: 'y',
         onClick: handleChartClick,
+        scales: { x: { grace: '15%' } },
         plugins: { legend: { display: false } }
     });
 
@@ -630,7 +610,6 @@ export function updateDashboard() {
         }
     });
 
-    renderStatsTable(dashboardRecords);
 }
 // Estilo de una línea mensual: rectas entre puntos (una curva inventaría valores entre meses)
 // y, en los meses incompletos, tramo en pointillé y punto hueco.
@@ -654,6 +633,53 @@ function monthlyLineStyle(color, months, incomplete) {
     };
 }
 
+// Etiquetas de valor de una gráfica de líneas: se ven todas, también los 0.
+// En cada mes la serie más alta lleva su número encima del punto y la más baja debajo,
+// así dos líneas cercanas no se pisan. Debajo del 0 queda un margen (sin marcas) para esas etiquetas.
+function lineValueLabels(seriesValues, textColor) {
+    const maxValue = Math.max(1, ...seriesValues.flat().map(v => Number(v) || 0));
+    const position = (ctx) => {
+        if (seriesValues.length < 2) return 'top';
+        const order = seriesValues
+            .map((values, index) => [Number(values[ctx.dataIndex]) || 0, index])
+            .sort((x, y) => y[0] - x[0] || x[1] - y[1])
+            .map(([, index]) => index);
+        const rank = order.indexOf(ctx.datasetIndex);
+        if (rank === 0) return 'top';
+        return rank === order.length - 1 ? 'bottom' : 'right';
+    };
+    const gridColor = document.documentElement.getAttribute('data-theme') === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+    return {
+        datalabels: {
+            display: true,
+            anchor: 'center',
+            align: position,
+            offset: 6,
+            clamp: true,
+            color: (context) => context.dataset.borderColor || textColor,
+            font: { weight: 'bold', family: 'Outfit', size: 11 },
+            formatter: (value) => fmt(value)
+        },
+        scales: {
+            // offset: medio mes de margen a cada lado, para que el primer y el último número no se corten
+            x: { offset: true },
+            y: {
+                beginAtZero: true,
+                grace: '15%',
+                min: seriesValues.length > 1 ? -Math.ceil(maxValue * 0.14) : 0,
+                ticks: { callback: (value) => (value < 0 ? '' : fmt(value)) },
+                // Las marcas negativas se quitan y el 0 se mantiene siempre como base del eje
+                afterBuildTicks: (scale) => {
+                    const ticks = scale.ticks.filter(tick => tick.value >= 0);
+                    if (!ticks.some(tick => tick.value === 0)) ticks.unshift({ value: 0 });
+                    scale.ticks = ticks;
+                },
+                grid: { color: (ctx) => (ctx.tick && ctx.tick.value < 0 ? 'transparent' : gridColor) }
+            }
+        }
+    };
+}
+
 // Gráfica de líneas con un trazo por grupo a lo largo de los meses
 function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textColor, incomplete = new Map(), onClick }) {
     const labels = months.map(key => monthAxisLabel(key, incomplete));
@@ -664,85 +690,88 @@ function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textCo
         ...monthlyLineStyle(colorFor(group, index), months, incomplete)
     }));
 
+    const valueLabels = lineValueLabels(datasets.map(d => d.data), textColor);
     renderChart(canvasId, 'line', labels, [], null, {
         datasets,
         onClick,
         // Al pasar sobre un mes se ven todos los grupos a la vez
         interaction: { mode: 'index', intersect: false },
-        scales: {
-            y: { beginAtZero: true, grace: '15%' }
-        },
+        scales: valueLabels.scales,
         layout: { padding: { top: 20 } },
         plugins: {
             legend: { display: true },
-            datalabels: {
-                display: 'auto',
-                anchor: 'end',
-                align: 'top',
-                color: (context) => context.dataset.borderColor || textColor,
-                font: { weight: 'bold', family: 'Outfit', size: 11 },
-                formatter: fmtLabel
-            }
+            datalabels: valueLabels.datalabels
         }
     });
 }
 
-// Barras apiladas por mes: un segmento por grupo, con 2 px de separación entre segmentos.
-// Solo se rotulan los segmentos grandes; el detalle de cada mes está en el tooltip.
-function renderStackedMonthly(canvasId, months, groups, data, { colorFor, incomplete = new Map(), isDarkMode, onClick }) {
-    const labels = months.map(key => monthAxisLabel(key, incomplete));
-    const surface = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim() || '#ffffff';
-    const totals = months.map((_, i) => groups.reduce((sum, group) => sum + (data[group][i] || 0), 0));
-    const maxTotal = Math.max(1, ...totals);
-    // Texto oscuro sobre el amarillo, blanco sobre los demás colores
-    const darkText = new Set([getCategoryColor('', false), '#eda100', '#c98500']);
+// Una mini gráfica de barras por categoría, todas con la misma escala vertical para que se puedan
+// comparar. Cada barra lleva su número encima, también los 0; los meses incompletos van en tono pálido.
+function renderCategoryPanels({ months, categories, data }, { incomplete, isDarkMode, textColor, onClick }) {
+    const container = document.getElementById('categoryEvolutionPanels');
+    if (!container) return;
 
-    const datasets = groups.map(group => {
-        const color = colorFor(group);
-        return {
-            label: group,
-            data: data[group],
-            backgroundColor: months.map(key => fadeColor(color, incomplete.has(key))),
-            borderColor: surface,
-            borderWidth: { top: 2 },
-            borderRadius: 0,
-            borderSkipped: false,
-            stack: 'total'
-        };
+    // Las gráficas anteriores se destruyen antes de reconstruir los lienzos
+    Object.keys(charts).filter(id => id.startsWith('categoryEvolutionChart')).forEach(id => {
+        charts[id].destroy();
+        delete charts[id];
+    });
+    container.innerHTML = '';
+    if (months.length === 0 || categories.length === 0) return;
+
+    const neutral = NEUTRAL_COLORS[isDarkMode ? 'dark' : 'light'];
+    const maxValue = Math.max(1, ...categories.flatMap(category => data[category]));
+    const multiYear = new Set(months.map(key => key.slice(0, 4))).size > 1;
+    // Etiqueta corta: "Juin" (con el año si los datos cruzan de año) y "partiel" debajo si el mes está incompleto
+    const labels = months.map(key => {
+        const [y, m] = key.split('-');
+        const name = SHORT_MONTH_NAMES[parseInt(m, 10) - 1] + (multiYear ? ` ${y.slice(2)}` : '');
+        return incomplete.has(key) ? [name, '(partiel)'] : name;
     });
 
-    renderChart(canvasId, 'bar', labels, [], null, {
-        datasets,
-        onClick,
-        interaction: { mode: 'index', intersect: false },
-        scales: {
-            x: { stacked: true },
-            y: { stacked: true, beginAtZero: true, grace: '8%' }
-        },
-        plugins: {
-            legend: {
-                display: true,
-                labels: {
-                    // La leyenda usa el color pleno de cada grupo, no el pálido de un mes incompleto
-                    generateLabels: (chart) => Chart.defaults.plugins.legend.labels.generateLabels(chart)
-                        .map(item => ({ ...item, fillStyle: colorFor(item.text), strokeStyle: colorFor(item.text) }))
-                }
+    categories.forEach((category, index) => {
+        const total = data[category].reduce((sum, v) => sum + (v || 0), 0);
+        const panel = document.createElement('div');
+        panel.className = 'category-panel';
+        const title = document.createElement('h4');
+        title.className = 'category-panel-title';
+        title.textContent = category;
+        const totalEl = document.createElement('span');
+        totalEl.className = 'category-panel-total';
+        totalEl.textContent = `${fmt(total)} ampoules`;
+        title.appendChild(totalEl);
+        const box = document.createElement('div');
+        box.className = 'category-panel-chart';
+        const canvas = document.createElement('canvas');
+        canvas.id = `categoryEvolutionChart-${index}`;
+        canvas.dataset.category = category;
+        canvas.setAttribute('role', 'img');
+        canvas.setAttribute('aria-label', `${category} : ${months.map((key, i) => `${shortMonthLabel(key)} ${fmt(data[category][i])}`).join(', ')}`);
+        box.appendChild(canvas);
+        panel.append(title, box);
+        container.appendChild(panel);
+
+        renderChart(canvas.id, 'bar', labels, data[category], months.map(key => fadeColor(neutral.ink, incomplete.has(key))), {
+            datasetLabel: category,
+            onClick,
+            layout: { padding: { top: 4 } },
+            scales: {
+                x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: false, font: { family: 'Outfit', size: 10 } } },
+                // Misma escala en todas las categorías; el eje no se dibuja porque cada barra lleva su número
+                y: { display: false, min: 0, max: Math.ceil(maxValue * 1.25) }
             },
-            tooltip: {
-                callbacks: {
-                    footer: (items) => items.length ? `Total : ${fmt(totals[items[0].dataIndex])}` : ''
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'end',
+                    align: 'top',
+                    offset: 2,
+                    color: textColor,
+                    font: { weight: 'bold', family: 'Outfit', size: 11 },
+                    formatter: (value) => fmt(value)
                 }
-            },
-            datalabels: {
-                display: (ctx) => (ctx.dataset.data[ctx.dataIndex] || 0) >= maxTotal * 0.08,
-                anchor: 'center',
-                align: 'center',
-                // En claro, los meses incompletos van en tono pálido: ahí el número va en tinta oscura
-                color: (ctx) => (!isDarkMode && (darkText.has(colorFor(ctx.dataset.label)) || incomplete.has(months[ctx.dataIndex])) ? '#0b0b0b' : '#ffffff'),
-                font: { weight: 'bold', family: 'Outfit', size: 11 },
-                formatter: fmtLabel
             }
-        }
+        });
     });
 }
 
@@ -974,24 +1003,16 @@ function renderCompareEvolution(config, records) {
         ...monthlyLineStyle(lineColors[index], months, incomplete)
     }));
 
+    const valueLabels = lineValueLabels(datasets.map(d => d.data), textColor);
     renderChart(config.canvasId, 'line', labels, [], null, {
         datasets,
         // Al pasar sobre un mes se ven las dos líneas a la vez
         interaction: { mode: 'index', intersect: false },
-        scales: {
-            y: { beginAtZero: true, grace: '15%' }
-        },
+        scales: valueLabels.scales,
         layout: { padding: { top: 20 } },
         plugins: {
             legend: { display: true },
-            datalabels: {
-                display: 'auto',
-                anchor: 'end',
-                align: 'top',
-                color: (context) => context.dataset.borderColor || textColor,
-                font: { weight: 'bold', family: 'Outfit', size: 11 },
-                formatter: fmtLabel
-            }
+            datalabels: valueLabels.datalabels
         }
     });
 }
@@ -1311,133 +1332,4 @@ function withSelected(values, selected) {
 
 function unique(values) {
     return [...new Set(values.filter(Boolean))];
-}
-
-export function updateStatsTableCollapseUI() {
-    const bodyContainer = document.getElementById('stats-table-body-container');
-    const icon = document.getElementById('icon-toggle-stats-table');
-    const toggleText = document.getElementById('text-toggle-stats-table');
-    const toggleBtn = document.getElementById('btn-toggle-stats-table');
-    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', String(!isStatsTableCollapsed));
-
-    if (!bodyContainer) return;
-
-    if (isStatsTableCollapsed) {
-        bodyContainer.style.display = 'none';
-        if (icon) icon.style.transform = 'rotate(0deg)';
-        if (toggleText) toggleText.textContent = 'Afficher';
-    } else {
-        bodyContainer.style.display = 'block';
-        if (icon) icon.style.transform = 'rotate(180deg)';
-        if (toggleText) toggleText.textContent = 'Masquer';
-    }
-}
-
-export function initStatsTableListeners() {
-    const searchInput = document.getElementById('search-stats-table');
-    const headerEl = document.getElementById('stats-table-header');
-    const toggleBtn = document.getElementById('btn-toggle-stats-table');
-
-    const toggleCollapse = () => {
-        isStatsTableCollapsed = !isStatsTableCollapsed;
-        updateStatsTableCollapseUI();
-    };
-
-    if (toggleBtn) {
-        toggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleCollapse();
-        });
-    }
-
-    if (headerEl) {
-        headerEl.addEventListener('click', (e) => {
-            if (e.target.closest('#search-stats-table') || e.target.closest('#btn-toggle-stats-table')) return;
-            toggleCollapse();
-        });
-    }
-
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            statsTableSearchQuery = e.target.value.toLowerCase().trim();
-            if (isStatsTableCollapsed && statsTableSearchQuery) {
-                isStatsTableCollapsed = false;
-                updateStatsTableCollapseUI();
-            }
-            const records = getFilteredRecords();
-            renderStatsTable(records);
-        });
-    }
-}
-
-export function renderStatsTable(dashboardRecords) {
-    const tableBody = document.getElementById('stats-table-body');
-    if (!tableBody) return;
-
-    const selectedEtage = ui.elements.filterEtage ? ui.elements.filterEtage.value : 'all';
-
-    // Desplegar automáticamente si se selecciona un piso específico
-    if (selectedEtage !== 'all' && lastSelectedEtage !== selectedEtage) {
-        isStatsTableCollapsed = false;
-        lastSelectedEtage = selectedEtage;
-    } else if (selectedEtage === 'all' && lastSelectedEtage !== 'all' && lastSelectedEtage !== null) {
-        lastSelectedEtage = 'all';
-    }
-
-    updateStatsTableCollapseUI();
-
-    // Agrupar dashboardRecords por Description
-    const descMap = {};
-
-    dashboardRecords.forEach(r => {
-        const idKey = r.id_item || "Inconnu";
-        const foundOpt = store.appOptions.opciones.find(opt => opt.id === idKey);
-        const desc = (foundOpt && foundOpt.description) ? foundOpt.description : (r.description || idKey);
-        const qty = Number(r.quantite || 0);
-
-        if (!descMap[desc]) {
-            descMap[desc] = 0;
-        }
-        descMap[desc] += qty;
-    });
-
-    let list = Object.keys(descMap).map(desc => ({
-        description: desc,
-        quantite: descMap[desc]
-    }));
-
-    if (statsTableSearchQuery) {
-        list = list.filter(item => String(item.description).toLowerCase().includes(statsTableSearchQuery));
-    }
-
-    // Ordenar de mayor a menor cantidad
-    list.sort((a, b) => b.quantite - a.quantite);
-
-    if (list.length === 0) {
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="2" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                    <span aria-hidden="true" class="material-symbols-rounded" style="font-size: 1.8rem; display: block; margin-bottom: 0.5rem; opacity: 0.5;">inventory_2</span>
-                    Aucune donnée disponible pour ces filtres.
-                </td>
-            </tr>
-        `;
-        return;
-    }
-
-    let html = '';
-    list.forEach(item => {
-        html += `
-            <tr style="border-bottom: 1px solid var(--border-color); transition: background 0.15s ease;">
-                <td style="padding: 0.75rem 1rem; vertical-align: middle; font-weight: 600; color: var(--text-primary);">
-                    ${escapeHtml(item.description)}
-                </td>
-                <td style="padding: 0.75rem 1rem; vertical-align: middle; text-align: right; font-size: 1.05rem; font-weight: 700; color: var(--primary);">
-                    ${item.quantite}
-                </td>
-            </tr>
-        `;
-    });
-
-    tableBody.innerHTML = html;
 }

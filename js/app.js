@@ -195,7 +195,6 @@ function setupEventListeners() {
             ui.elements.clearFiltersBtn.addEventListener('click', charts.resetStatsFilters);
         }
         charts.initStatsFilters();
-        charts.initStatsTableListeners();
     }
 
     if (ui.elements.filterHistoryMonth) {
