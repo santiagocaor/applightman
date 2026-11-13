@@ -1836,21 +1836,20 @@ body {
 }
 
 .history-row {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.75rem 0.9rem;
-    margin-bottom: 0.5rem;
+    padding: 0.75rem 0.9rem 0.6rem;
+    margin-bottom: 0.6rem;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-left-width: 4px;
     border-radius: var(--radius-sm);
 }
 
-.history-row .hr-main {
-    min-width: 0;
-    flex: 1 1 auto;
+/* Referencia y cantidad */
+.history-row .hr-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
 }
 
 .history-row .hr-desc {
@@ -1860,27 +1859,71 @@ body {
     overflow-wrap: anywhere;
 }
 
-.history-row .hr-meta {
-    margin-top: 0.2rem;
+/* Cada dato en su casilla: dos columnas en un teléfono, más en pantallas anchas */
+.hr-facts {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr));
+    gap: 0.3rem 0.9rem;
     font-size: 0.8rem;
+    line-height: 1.3;
     color: var(--text-secondary);
+}
+
+.hr-fact {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.hr-fact .material-symbols-rounded {
+    font-size: 1rem;
+    line-height: 1.05rem;
+    flex: 0 0 auto;
+    opacity: 0.75;
+}
+
+/* El bon o la tournée identifica la línea: ocupa toda la fila y va más marcado */
+.hr-fact.hr-fact-doc {
+    grid-column: 1 / -1;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* Nota a la izquierda y botones a la derecha, separados de los datos */
+.history-row .hr-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.55rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
 }
 
 .history-row .hr-note {
-    margin-top: 0.35rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
     font-size: 0.8rem;
     font-style: italic;
+    line-height: 1.3;
     color: var(--text-secondary);
     overflow-wrap: anywhere;
 }
 
-.history-row .hr-side {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.4rem;
+.history-row .hr-note .material-symbols-rounded {
+    font-size: 1rem;
+    font-style: normal;
     flex: 0 0 auto;
+    opacity: 0.75;
 }
 
 .hr-qty {
@@ -1925,6 +1968,7 @@ body {
 
 .history-group .hg-main {
     min-width: 0;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
@@ -1934,7 +1978,10 @@ body {
     font-weight: 700;
 }
 
-.history-group .hg-meta,
+.history-group .hg-main .hr-facts {
+    margin-top: 0.35rem;
+}
+
 .history-group .hg-lines {
     font-size: 0.8rem;
     color: var(--text-secondary);

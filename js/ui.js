@@ -1,5 +1,5 @@
 // js/ui.js
-import { getCategoryColor, escapeHtml, localDateString, parseRecordDate, sortRecords, groupHistory, orderHistoryItems, historyTotals, recordsToCsv, docReference, DOC_LABELS, visitSummary, recentReferences } from './utils.js';
+import { getCategoryColor, escapeHtml, localDateString, parseRecordDate, sortRecords, groupHistory, orderHistoryItems, historyTotals, recordsToCsv, docReference, DOC_LABELS, visitSummary, recentReferences, etageKey } from './utils.js';
 import * as store from './store.js';
 import { deleteRecord } from './api.js';
 
@@ -577,12 +577,12 @@ function restoreVisit(visit) {
     }
 }
 
-const HISTORY_MONTH_NAMES = ["janv", "févr", "mars", "avr", "mai", "juin", "juil", "août", "sept", "oct", "nov", "déc"];
+const HISTORY_MONTH_NAMES = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
 function formatHistoryDate(value) {
     try {
         const d = parseRecordDate(value);
-        if (!isNaN(d)) return `${d.getDate()}-${HISTORY_MONTH_NAMES[d.getMonth()]}-${d.getFullYear()}`;
+        if (!isNaN(d)) return `${d.getDate()} ${HISTORY_MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
     } catch (error) {
         console.warn("Date illisible :", error);
     }
@@ -615,25 +615,40 @@ function historyActionsHtml(r) {
         </div>`;
 }
 
-// Línea compacta del historial; dentro de una visita agrupada se omite lo que ya dice la cabecera
+// Un dato de la tarjeta (icono + texto) en su propia casilla, para que no se mezcle con los demás
+function historyFact(icon, text, extraClass = '') {
+    if (!text) return '';
+    return `<li class="hr-fact${extraClass ? ` ${extraClass}` : ''}"><span aria-hidden="true" class="material-symbols-rounded">${icon}</span><span>${escapeHtml(text)}</span></li>`;
+}
+
+// Tarjeta de una línea del historial: referencia y cantidad arriba, cada dato en su casilla y,
+// abajo, la nota y los botones. Dentro de una visita agrupada se omite lo que ya dice la cabecera.
 function historyRowHtml(r, inGroup) {
     const doc = docReference(r);
-    const docText = doc ? `${DOC_LABELS[doc.kind]}${doc.number ? ` #${doc.number}` : ''}` : '';
-    const etageText = r.etage !== undefined && r.etage !== null && String(r.etage).trim() !== '' ? `Étage ${String(r.etage).trim()}` : '';
-    const parts = inGroup
-        ? [etageText, r.categorie, r.id_item]
-        : [docText || r.tache, r.locataire, etageText, formatHistoryDate(r.fecha || r.date), r.categorie, r.id_item];
-    const meta = parts.filter(Boolean).join(' · ');
+    const docText = doc ? `${DOC_LABELS[doc.kind]}${doc.number ? ` ${doc.number}` : ''}` : String(r.tache ?? '').trim();
+    const etage = etageKey(r);
+    const etageText = etage ? `Étage ${etage}` : '';
+    const category = [r.categorie, r.id_item].map(v => String(v ?? '').trim()).filter(Boolean).join(' · ');
+    const qty = Number(r.quantite || 0);
+    const facts = inGroup
+        ? [historyFact('layers', etageText), historyFact('local_offer', category)]
+        : [
+            historyFact('receipt_long', docText, 'hr-fact-doc'),
+            historyFact('event', formatHistoryDate(r.fecha || r.date)),
+            historyFact('apartment', String(r.locataire ?? '').trim()),
+            historyFact('layers', etageText),
+            historyFact('local_offer', category)
+        ];
 
     return `
         <div class="history-row" style="border-left-color: ${getCategoryColor(r.categorie)};">
-            <div class="hr-main">
+            <div class="hr-head">
                 <div class="hr-desc">${escapeHtml(historyDescription(r))}</div>
-                <div class="hr-meta">${escapeHtml(meta)}</div>
-                ${r.note ? `<div class="hr-note">${escapeHtml(r.note)}</div>` : ''}
+                <span class="hr-qty" title="Quantité" aria-label="${qty} ampoule${qty > 1 ? 's' : ''}">${escapeHtml(r.quantite)}</span>
             </div>
-            <div class="hr-side">
-                <span class="hr-qty" title="Quantité">${escapeHtml(r.quantite)}</span>
+            <ul class="hr-facts">${facts.join('')}</ul>
+            <div class="hr-foot">
+                ${r.note ? `<p class="hr-note"><span aria-hidden="true" class="material-symbols-rounded">notes</span><span>${escapeHtml(r.note)}</span></p>` : '<span></span>'}
                 ${historyActionsHtml(r)}
             </div>
         </div>`;
@@ -643,14 +658,17 @@ function historyRowHtml(r, inGroup) {
 function historyGroupHtml(group, open) {
     const dateLabel = group.day ? formatHistoryDate(group.day) : '';
     const etageText = group.etages.length > 0 ? `Étage${group.etages.length > 1 ? 's' : ''} ${group.etages.join(', ')}` : '';
-    const meta = [dateLabel, group.locataires.join(', '), etageText].filter(Boolean).join(' · ');
     const count = group.lines.length;
     return `
         <details class="history-group"${open ? ' open' : ''}>
             <summary>
                 <div class="hg-main">
-                    <span class="hg-title">${escapeHtml(DOC_LABELS[group.kind])} #${escapeHtml(group.number)}</span>
-                    <span class="hg-meta">${escapeHtml(meta)}</span>
+                    <span class="hg-title">${escapeHtml(DOC_LABELS[group.kind])} ${escapeHtml(group.number)}</span>
+                    <ul class="hr-facts">${[
+                        historyFact('event', dateLabel),
+                        historyFact('apartment', group.locataires.join(', ')),
+                        historyFact('layers', etageText)
+                    ].join('')}</ul>
                 </div>
                 <div class="hg-side">
                     <span class="hr-qty" title="Ampoules">${group.total}</span>
