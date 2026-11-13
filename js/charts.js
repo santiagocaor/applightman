@@ -187,8 +187,9 @@ export function updateDashboard() {
 
     // Volumen total y n.º 1 de los rankings: tinta neutra (el azul y el naranja son de los tipos de tarea)
     const neutral = NEUTRAL_COLORS[isDarkMode ? 'dark' : 'light'];
-    const volumeColor = neutral.ink;
-    const monthlyColors = sortedMonths.map(() => volumeColor);
+    // El mes con más ampoules en tinta oscura y los demás en gris, como en los rankings
+    const monthlyMax = Math.max(0, ...monthlyValues);
+    const monthlyColors = monthlyValues.map(value => (monthlyMax > 0 && value === monthlyMax ? neutral.ink : neutral.muted));
 
     // 2. Top 5 Productos
     const productData = {};
