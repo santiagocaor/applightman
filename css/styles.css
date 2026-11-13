@@ -489,6 +489,13 @@ body {
     width: 100%;
 }
 
+/* Valor de texto largo (p. ej. la descripción del modelo dominante) */
+.stat-value.stat-value-text {
+    font-size: 1.15rem;
+    line-height: 1.35;
+    margin: 0.6rem 0 0.75rem 0;
+}
+
 .stat-trend {
     display: inline-flex;
     align-items: center;
@@ -1471,6 +1478,11 @@ body {
 [data-theme="dark"] .stat-icon-wrapper,
 [data-theme="dark"] .nav-item.active .material-symbols-rounded {
     color: var(--primary);
+}
+
+.partial-months-note {
+    grid-column: 1 / -1;
+    margin: -0.5rem 0 1rem;
 }
 
 .chart-note {

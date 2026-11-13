@@ -1,6 +1,6 @@
 // Cambiar la versión solo sirve para limpiar la caché: los archivos de la app se piden primero a la red,
 // de modo que cada despliegue llega a los dispositivos instalados sin tocar este archivo.
-const CACHE_NAME = 'lightman-cache-v99';
+const CACHE_NAME = 'lightman-cache-v100';
 
 // Con mala señal no se espera a la red más de este tiempo si hay una copia guardada
 const NETWORK_TIMEOUT_MS = 3000;

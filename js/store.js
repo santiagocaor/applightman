@@ -1,5 +1,5 @@
 // js/store.js
-import { recordMonthKey, monthInPeriod } from './utils.js';
+import { recordMonthKey, monthInPeriod, setCategoryOrder } from './utils.js';
 
 // Lee JSON de localStorage sin romper la app si el contenido está dañado
 export function readJson(key, fallback) {
@@ -126,14 +126,25 @@ function persistSyncQueue() {
     writeJson('lightman_sync_queue', syncQueue);
 }
 
+// Orden de las categorías para sus colores: primero el catálogo, luego las que solo están en los registros.
+// Así cada categoría conserva su color aunque los filtros cambien lo que se ve.
+function refreshCategoryOrder() {
+    const fromCatalog = appOptions.opciones.map(item => item.categorie);
+    const fromRecords = [...new Set(records.map(r => r.categorie).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'fr'));
+    setCategoryOrder([...fromCatalog, ...fromRecords]);
+}
+
 export function setAppOptions(options) {
     appOptions = normalizeOptions(options);
+    refreshCategoryOrder();
     // El catálogo de prueba nunca se guarda: solo se conserva el catálogo real
     if (apiUrl) writeJson('lightman_app_options', appOptions);
 }
 
 export function setRecords(newRecords) {
     records = (Array.isArray(newRecords) ? newRecords : []).map(normalizeRecord);
+    refreshCategoryOrder();
     persistRecords();
 }
 
@@ -149,11 +160,13 @@ export function loadCachedData() {
     if (!cachedOptions || !Array.isArray(cachedRecords)) return false;
     appOptions = normalizeOptions(cachedOptions);
     records = cachedRecords.map(normalizeRecord);
+    refreshCategoryOrder();
     return true;
 }
 
 export function loadLocalRecords() {
     records = readArray('lightman_local_records').map(normalizeRecord);
+    refreshCategoryOrder();
 }
 
 // Registros en la nube más los pendientes de sincronizar, sin repetir ninguno

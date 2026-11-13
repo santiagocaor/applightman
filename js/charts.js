@@ -1,5 +1,5 @@
 // js/charts.js
-import { getCategoryColor, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, uniqueDocsByMonth, recordMonths, monthlyReport, monthlySeries } from './utils.js';
+import { getCategoryColor, taskColor, NEUTRAL_COLORS, escapeHtml, parsePrice, recordMonthKey, naturalCompare, weekdayTotals, isReceptionTask, monthlyAverage, incompleteMonths, monthlyByCategory, monthlyByGroup, referenceKey, locataireKey, etageKey, uniqueDocsByMonth, recordMonths, monthlyReport, monthlySeries } from './utils.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -30,6 +30,44 @@ const SHORT_MONTH_NAMES = ["Janv", "Févr", "Mars", "Avr", "Mai", "Juin", "Juil"
 function shortMonthLabel(key) {
     const [y, m] = key.split('-');
     return `${SHORT_MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
+}
+
+// Números con el formato del francés de Canadá: 1 233 y 233,8
+const fmt = (value, digits = 0) => Number(value || 0).toLocaleString('fr-CA', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const fmtLabel = (value) => value > 0 ? fmt(value) : '';
+
+const LONG_MONTH_NAMES = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+// Meses que los datos no cubren enteros (el primero si empieza a mitad de mes, y el mes en curso).
+// Se calculan sobre todos los registros: un filtro no cambia qué meses están completos.
+function currentIncompleteMonths() {
+    return incompleteMonths(store.getAllRecords().filter(r => !isReceptionTask(r.tache)));
+}
+
+// Etiqueta del eje: un mes incompleto lleva una segunda línea "partiel"
+function monthAxisLabel(key, incomplete) {
+    const label = shortMonthLabel(key);
+    return incomplete.has(key) ? [label, '(partiel)'] : label;
+}
+
+// Color con transparencia para las barras de un mes incompleto
+function fadeColor(hex, partial) {
+    return partial ? `${hex}59` : hex;
+}
+
+// Nota bajo el bloque de tendencias: qué meses están incompletos y por qué
+function renderIncompleteNote(incomplete) {
+    const note = document.getElementById('partial-months-note');
+    if (!note) return;
+    const parts = [...incomplete.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, info]) => {
+        const [y, m] = key.split('-');
+        const name = `${LONG_MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
+        return info.kind === 'start' ? `${name} (données à partir du ${info.day})` : `${name} (mois en cours, jusqu'au ${info.day})`;
+    });
+    note.textContent = parts.length
+        ? `Mois incomplets : ${parts.join(' et ')}. Ils sont marqués « partiel », en couleur pâle ou en pointillé, et ne comptent pas dans la moyenne mensuelle.`
+        : '';
+    note.classList.toggle('hidden-field', parts.length === 0);
 }
 
 function periodLabel(value) {
@@ -91,7 +129,8 @@ export function getCatalogPrice(r) {
 
 // Compara el último mes completo con el anterior: el mes en curso aún no es comparable.
 // Más consumo se muestra en rojo y menos en verde.
-function renderMonthlyTrend(el, monthlyTotals, fallbackText) {
+// Si alguno de los dos meses está incompleto (p. ej. los datos empiezan a mitad de mes), no se compara.
+function renderMonthlyTrend(el, monthlyTotals, fallbackText, incomplete = new Map()) {
     if (!el) return;
 
     const monthNames = ["janv", "févr", "mars", "avr", "mai", "juin", "juil", "août", "sept", "oct", "nov", "déc"];
@@ -102,7 +141,8 @@ function renderMonthlyTrend(el, monthlyTotals, fallbackText) {
     const lastValue = monthlyTotals[toKey(lastMonth)] || 0;
     const previousValue = monthlyTotals[toKey(previousMonth)] || 0;
 
-    if (Object.keys(monthlyTotals).length < 2 || previousValue <= 0) {
+    if (Object.keys(monthlyTotals).length < 2 || previousValue <= 0
+        || incomplete.has(toKey(lastMonth)) || incomplete.has(toKey(previousMonth))) {
         el.className = 'stat-trend neutral';
         el.textContent = fallbackText;
         return;
@@ -111,7 +151,7 @@ function renderMonthlyTrend(el, monthlyTotals, fallbackText) {
     const diffPct = Math.round(((lastValue - previousValue) / previousValue) * 100);
     const period = `${monthNames[lastMonth.getMonth()]} vs ${monthNames[previousMonth.getMonth()]}`;
     el.className = `stat-trend ${diffPct > 0 ? 'negative' : diffPct < 0 ? 'positive' : 'neutral'}`;
-    el.textContent = `${diffPct > 0 ? '+' : ''}${diffPct}% ${period}`;
+    el.textContent = `${diffPct > 0 ? '+' : ''}${fmt(diffPct)} % ${period}`;
 }
 
 function renderDataNotice(filteredCount = null) {
@@ -146,18 +186,17 @@ export function updateDashboard() {
         monthlyData[key] = (monthlyData[key] || 0) + qty;
     });
     const sortedMonths = Object.keys(monthlyData).sort();
-    const monthNames = ["Janv", "Févr", "Mars", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"];
-    const monthlyLabels = sortedMonths.map(key => {
-        const [y, m] = key.split('-');
-        return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
-    });
+    const incomplete = currentIncompleteMonths();
+    renderIncompleteNote(incomplete);
+    const monthlyLabels = sortedMonths.map(key => monthAxisLabel(key, incomplete));
     const monthlyValues = sortedMonths.map(key => monthlyData[key]);
 
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
 
-    // Azul técnico para el volumen
-    const volumeColor = isDarkMode ? '#3b82f6' : '#2563eb';
-    const monthlyColors = sortedMonths.map(() => volumeColor);
+    // Volumen total y n.º 1 de los rankings: tinta neutra (el azul y el naranja son de los tipos de tarea)
+    const neutral = NEUTRAL_COLORS[isDarkMode ? 'dark' : 'light'];
+    const volumeColor = neutral.ink;
+    const monthlyColors = sortedMonths.map(key => fadeColor(volumeColor, incomplete.has(key)));
 
     // 2. Top 5 Productos
     const productData = {};
@@ -211,23 +250,23 @@ export function updateDashboard() {
 
     // Actualizar KPIs
     if (ui.elements.statTotal) {
-        ui.elements.statTotal.textContent = totalBulbs.toLocaleString();
-        ui.elements.statTotal.title = totalBulbs.toLocaleString();
+        ui.elements.statTotal.textContent = fmt(totalBulbs);
+        ui.elements.statTotal.title = fmt(totalBulbs);
     }
 
-    renderMonthlyTrend(document.getElementById('stat-trend-total'), monthlyData, 'Consommation globale');
+    renderMonthlyTrend(document.getElementById('stat-trend-total'), monthlyData, 'Consommation globale', incomplete);
 
     // Promedio sobre meses completos, contando también los meses sin registros
-    const { average: monthlyAvg, months: averageMonths } = monthlyAverage(monthlyData);
+    const { average: monthlyAvg, months: averageMonths } = monthlyAverage(monthlyData, new Date(), new Set(incomplete.keys()));
     if (ui.elements.statAvg) {
-        const avg = monthlyAvg.toFixed(1);
+        const avg = fmt(monthlyAvg, 1);
         ui.elements.statAvg.textContent = avg;
         ui.elements.statAvg.title = avg;
     }
     const trendAvgEl = document.getElementById('stat-trend-avg');
     if (trendAvgEl) {
         trendAvgEl.className = 'stat-trend neutral';
-        trendAvgEl.textContent = `Sur ${averageMonths || 1} mois`;
+        trendAvgEl.textContent = `Sur ${averageMonths || 1} mois complet${averageMonths > 1 ? 's' : ''}`;
     }
 
     if (ui.elements.statTopEtage) {
@@ -241,8 +280,8 @@ export function updateDashboard() {
         if (sortedEtages.length > 0) {
             const topQty = Object.values(etageBulbsByCategory[sortedEtages[0]]).reduce((s, v) => s + v, 0);
             const etagePct = totalBulbs > 0 ? Math.min(100, Math.round((topQty / totalBulbs) * 100)) : 0;
-            trendEtageEl.className = 'stat-trend positive';
-            trendEtageEl.textContent = `${topQty} ampoules util. (${etagePct}%)`;
+            trendEtageEl.className = 'stat-trend neutral';
+            trendEtageEl.textContent = `${fmt(topQty)} ampoules (${fmt(etagePct)} % du total)`;
             if (barEtageEl) barEtageEl.style.width = `${etagePct}%`;
         } else {
             trendEtageEl.className = 'stat-trend neutral';
@@ -254,19 +293,21 @@ export function updateDashboard() {
     if (ui.elements.statTopProduct) {
         const topProdCode = sortedProducts.length > 0 ? sortedProducts[0] : "-";
         const topProdDesc = sortedProducts.length > 0 ? topProductsFullDesc[0] : "";
-        ui.elements.statTopProduct.textContent = topProdCode;
-        ui.elements.statTopProduct.title = topProdDesc ? `${topProdCode} - ${topProdDesc}` : topProdCode;
+        // La descripción es lo que la gerencia reconoce; el código interno va en el subtítulo
+        ui.elements.statTopProduct.textContent = topProdDesc || topProdCode;
+        ui.elements.statTopProduct.title = topProdDesc ? `${topProdDesc} (${topProdCode})` : topProdCode;
+        ui.elements.statTopProduct.classList.toggle('stat-value-text', Boolean(topProdDesc));
     }
     const trendProductEl = document.getElementById('stat-trend-product');
     const barProductEl = document.getElementById('stat-bar-product');
     if (trendProductEl) {
         if (sortedProducts.length > 0) {
             const topProdQty = sortedProductQuantities[0] || 0;
-            const topProdDesc = topProductsFullDesc[0] || "";
+            const topProdCode = sortedProducts[0];
             const prodPct = totalBulbs > 0 ? Math.min(100, Math.round((topProdQty / totalBulbs) * 100)) : 0;
-            trendProductEl.className = 'stat-trend positive';
-            trendProductEl.textContent = topProdDesc ? `${topProdDesc} (${topProdQty} util.)` : `${topProdQty} remplacements (${prodPct}%)`;
-            trendProductEl.title = topProdDesc;
+            trendProductEl.className = 'stat-trend neutral';
+            trendProductEl.textContent = `${fmt(topProdQty)} ampoules (${fmt(prodPct)} %) · ${topProdCode}`;
+            trendProductEl.title = trendProductEl.textContent;
             if (barProductEl) barProductEl.style.width = `${prodPct}%`;
         } else {
             trendProductEl.className = 'stat-trend neutral';
@@ -288,7 +329,7 @@ export function updateDashboard() {
 
     const topProductsColors = sortedProducts.map(p => {
         const cat = productCategoryMap[p];
-        return cat ? getCategoryColor(cat) : '#cbd5e1';
+        return getCategoryColor(cat, isDarkMode);
     });
 
     const handleChartClick = (e, activeEls) => {
@@ -322,6 +363,9 @@ export function updateDashboard() {
             ui.elements.filterHistoryTache.value = label || 'all';
         } else if (canvasId === 'locataireChart' && ui.elements.filterHistoryLocataire) {
             ui.elements.filterHistoryLocataire.value = label || 'all';
+        } else if (canvasId === 'topProductsChart' && ui.elements.searchHistory) {
+            // La etiqueta es la descripción; se busca por el código, que es único
+            ui.elements.searchHistory.value = sortedProducts[index] || label;
         } else if (canvasId === 'categoryChart' && ui.elements.filterHistoryCategorie) {
             ui.elements.filterHistoryCategorie.value = label || 'all';
         } else if (ui.elements.searchHistory) {
@@ -344,7 +388,7 @@ export function updateDashboard() {
                 align: 'top',
                 color: textColor,
                 font: { weight: 'bold', family: 'Outfit', size: 12 },
-                formatter: (val) => val > 0 ? val : ''
+                formatter: fmtLabel
             }
         }
     });
@@ -354,8 +398,8 @@ export function updateDashboard() {
     const { values: weekdayValues, weekend: weekendTotal } = weekdayTotals(dashboardRecords);
     const weekdayMax = Math.max(...weekdayValues);
     const weekdayColors = weekdayValues.map(v => (weekdayMax > 0 && v === weekdayMax)
-        ? volumeColor
-        : (isDarkMode ? '#475569' : '#94a3b8'));
+        ? neutral.ink
+        : neutral.muted);
 
     const weekendNote = document.getElementById('weekday-chart-note');
     if (weekendNote) {
@@ -377,12 +421,12 @@ export function updateDashboard() {
                 align: 'top',
                 color: textColor,
                 font: { weight: 'bold', family: 'Outfit', size: 12 },
-                formatter: (val) => val > 0 ? val : ''
+                formatter: fmtLabel
             }
         }
     });
 
-    renderChart('topProductsChart', 'bar', sortedProducts, sortedProductQuantities, topProductsColors, {
+    renderChart('topProductsChart', 'bar', topProductsFullDesc, sortedProductQuantities, topProductsColors, {
         indexAxis: 'y',
         datasetLabel: 'Ampoules',
         onClick: handleChartClick,
@@ -400,8 +444,8 @@ export function updateDashboard() {
                         });
                         return Array.from(uniqueCats).map((cat, i) => ({
                             text: cat,
-                            fillStyle: getCategoryColor(cat),
-                            strokeStyle: getCategoryColor(cat),
+                            fillStyle: getCategoryColor(cat, isDarkMode),
+                            strokeStyle: getCategoryColor(cat, isDarkMode),
                             lineWidth: 0,
                             hidden: false,
                             index: i,
@@ -413,20 +457,20 @@ export function updateDashboard() {
             tooltip: {
                 callbacks: {
                     title: function(context) {
-                        return context[0].chart.options.fullDescriptions[context[0].dataIndex] || context[0].label;
+                        const index = context[0].dataIndex;
+                        const code = sortedProducts[index];
+                        const desc = context[0].chart.options.fullDescriptions[index] || context[0].label;
+                        return code && code !== desc ? `${desc} (${code})` : desc;
                     }
                 }
             }
         }
     });
 
-    // Paleta semántica unificada para tipos de tareas
-    const taskTypePalette = ['#2563eb', '#0d9488', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
-
-    // Ordenar los datos del gráfico de tipo de tarea de mayor a menor para que los colores se asignen según el tamaño
+    // Cada tipo de tarea tiene siempre el mismo color (azul = Bon de travail, naranja = Tournée)
     const taskTypeKeys = Object.keys(taskTypeData).sort((a, b) => taskTypeData[b] - taskTypeData[a]);
     const taskTypeVals = taskTypeKeys.map(k => taskTypeData[k]);
-    const taskTypeDoughnutColors = taskTypeKeys.map((_, i) => taskTypePalette[i % taskTypePalette.length]);
+    const taskTypeDoughnutColors = taskTypeKeys.map(k => taskColor(k, isDarkMode));
 
     renderChart('taskTypeChart', 'doughnut', taskTypeKeys, taskTypeVals, taskTypeDoughnutColors, {
         datasetLabel: 'Ampoules',
@@ -444,7 +488,7 @@ export function updateDashboard() {
                     const percentageValue = (value * 100 / sum);
                     const threshold = window.innerWidth < 480 ? 12 : 6;
                     if (percentageValue < threshold) return '';
-                    return `${value}`;
+                    return fmt(value);
                 },
                 color: '#ffffff',
                 font: { weight: 'bold', family: 'Outfit', size: window.innerWidth < 480 ? 12 : 14 }
@@ -461,7 +505,7 @@ export function updateDashboard() {
 
     const locataireKeys = Object.keys(locataireData).sort((a, b) => locataireData[b] - locataireData[a]);
     const locataireVals = locataireKeys.map(k => locataireData[k]);
-    const locataireColorsArr = locataireKeys.map((_, i) => i === 0 ? (isDarkMode ? '#60a5fa' : '#2563eb') : (isDarkMode ? '#475569' : '#94a3b8'));
+    const locataireColorsArr = locataireKeys.map((_, i) => i === 0 ? neutral.ink : neutral.muted);
 
     const locataireHeight = Math.max(250, locataireKeys.length * 42);
     const locataireCard = document.getElementById('locataireChart')?.closest('.chart-card');
@@ -481,7 +525,7 @@ export function updateDashboard() {
                 align: 'right',
                 color: textColor,
                 font: { weight: 'bold', family: 'Outfit', size: 12 },
-                formatter: (val) => val > 0 ? val : ''
+                formatter: fmtLabel
             }
         }
     });
@@ -493,14 +537,15 @@ export function updateDashboard() {
         { fillGaps: true }
     );
     renderGroupEvolution('taskTypeEvolutionChart', taskTypeEvolution.months, taskTypeEvolution.groups, taskTypeEvolution.data, {
-        colorFor: (name) => taskTypePalette[Math.max(0, taskTypeKeys.indexOf(name)) % taskTypePalette.length],
+        colorFor: (name) => taskColor(name, isDarkMode),
         textColor,
+        incomplete,
         onClick: handleChartClick
     });
 
     // Bons de travail et tournées réalisés par mois: chaque numéro n'est compté qu'une fois
     const docsEvolution = uniqueDocsByMonth(dashboardRecords);
-    const docsColors = isDarkMode ? ['#60a5fa', '#fbbf24'] : ['#2563eb', '#d97706'];
+    const docsColors = [taskColor('Bon de travail', isDarkMode), taskColor('Tournée', isDarkMode)];
     const bonLabel = `Bons de travail (total : ${docsEvolution.totalBon})`;
     const tourneeLabel = `Tournées (total : ${docsEvolution.totalTournee})`;
     const docsNote = document.getElementById('docs-chart-note');
@@ -523,14 +568,16 @@ export function updateDashboard() {
     }, {
         colorFor: (_name, index) => docsColors[index],
         textColor,
+        incomplete,
         onClick: handleChartClick
     });
 
-    // Évolution mensuelle par catégorie: une ligne par catégorie, les mois sans remplacement valent 0
+    // Évolution mensuelle par catégorie: barres empilées, une couleur par catégorie; les mois sans remplacement valent 0
     const categoryEvolution = monthlyByCategory(dashboardRecords, { fillGaps: true });
-    renderGroupEvolution('categoryEvolutionChart', categoryEvolution.months, categoryEvolution.categories, categoryEvolution.data, {
-        colorFor: (name) => getCategoryColor(name),
-        textColor,
+    renderStackedMonthly('categoryEvolutionChart', categoryEvolution.months, categoryEvolution.categories, categoryEvolution.data, {
+        colorFor: (name) => getCategoryColor(name, isDarkMode),
+        incomplete,
+        isDarkMode,
         onClick: handleChartClick
     });
 
@@ -548,7 +595,7 @@ export function updateDashboard() {
     if (catCard) catCard.style.height = `${catChartHeight + 80}px`;
 
     const catValues = catLabels.map(cat => catCounts[cat]);
-    renderChart('categoryChart', 'bar', catLabels, catValues, catLabels.map(cat => getCategoryColor(cat)), {
+    renderChart('categoryChart', 'bar', catLabels, catValues, catLabels.map(cat => getCategoryColor(cat, isDarkMode)), {
         datasetLabel: 'Ampoules',
         indexAxis: 'y',
         onClick: handleChartClick,
@@ -559,15 +606,17 @@ export function updateDashboard() {
     const top5EtagesValues = top5Etages.map(et => {
         return Object.values(etageBulbsByCategory[et]).reduce((sum, v) => sum + v, 0);
     });
-    // Resaltado Data Storytelling: Piso #1 en ámbar de atención, pisos restantes en tono pizarra neutro
-    const topEtagesColors = top5Etages.map((_, i) => i === 0 ? (isDarkMode ? '#f59e0b' : '#d97706') : (isDarkMode ? '#475569' : '#94a3b8'));
-    
+    // Mismo resaltado que en locataires: el piso n.º 1 en tinta oscura, los demás en gris neutro
+    const topEtagesColors = top5Etages.map((_, i) => i === 0 ? neutral.ink : neutral.muted);
+
     renderChart('topEtagesChart', 'bar', top5Etages, top5EtagesValues, topEtagesColors, {
         indexAxis: 'y',
         datasetLabel: 'Ampoules',
         onClick: handleChartClick,
         scales: {
-            x: { grace: '15%' }
+            x: { grace: '15%' },
+            // La etiqueta guarda el piso tal cual (lo usa el clic); en el eje se muestra "Étage 2"
+            y: { ticks: { callback: function (value) { return `Étage ${this.getLabelForValue(value)}`; } } }
         },
         plugins: {
             legend: { display: false },
@@ -576,42 +625,49 @@ export function updateDashboard() {
                 align: 'right',
                 color: textColor,
                 font: { weight: 'bold', family: 'Outfit', size: 12 },
-                formatter: (val) => val > 0 ? val : ''
+                formatter: fmtLabel
             }
         }
     });
 
     renderStatsTable(dashboardRecords);
 }
-// Gráfica de líneas con un trazo por categoría a lo largo de los meses
-function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textColor, onClick }) {
-    const monthLabelNames = ["Janv", "Févr", "Mars", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"];
-    const labels = months.map(key => {
-        const [y, m] = key.split('-');
-        return `${monthLabelNames[parseInt(m, 10) - 1]} ${y}`;
-    });
+// Estilo de una línea mensual: rectas entre puntos (una curva inventaría valores entre meses)
+// y, en los meses incompletos, tramo en pointillé y punto hueco.
+function monthlyLineStyle(color, months, incomplete) {
+    const partial = months.map(key => incomplete.has(key));
+    const surface = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim() || '#ffffff';
+    return {
+        borderColor: color,
+        backgroundColor: color,
+        fill: false,
+        tension: 0,
+        borderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        pointBorderColor: color,
+        pointBorderWidth: 2,
+        pointBackgroundColor: partial.map(p => (p ? surface : color)),
+        segment: {
+            borderDash: (ctx) => (partial[ctx.p0DataIndex] || partial[ctx.p1DataIndex] ? [6, 4] : undefined)
+        }
+    };
+}
 
-    const datasets = groups.map((group, index) => {
-        const color = colorFor(group, index);
-        return {
-            label: group,
-            data: data[group],
-            borderColor: color,
-            backgroundColor: color,
-            fill: false,
-            // Monótona: la curva nunca se sale de los valores reales (p. ej. por debajo de 0)
-            cubicInterpolationMode: 'monotone',
-            tension: 0.3,
-            borderWidth: 3,
-            pointRadius: 4,
-            pointHoverRadius: 6
-        };
-    });
+// Gráfica de líneas con un trazo por grupo a lo largo de los meses
+function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textColor, incomplete = new Map(), onClick }) {
+    const labels = months.map(key => monthAxisLabel(key, incomplete));
+
+    const datasets = groups.map((group, index) => ({
+        label: group,
+        data: data[group],
+        ...monthlyLineStyle(colorFor(group, index), months, incomplete)
+    }));
 
     renderChart(canvasId, 'line', labels, [], null, {
         datasets,
         onClick,
-        // Al pasar sobre un mes se ven todas las categorías a la vez
+        // Al pasar sobre un mes se ven todos los grupos a la vez
         interaction: { mode: 'index', intersect: false },
         scales: {
             y: { beginAtZero: true, grace: '15%' }
@@ -625,7 +681,66 @@ function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textCo
                 align: 'top',
                 color: (context) => context.dataset.borderColor || textColor,
                 font: { weight: 'bold', family: 'Outfit', size: 11 },
-                formatter: (value) => value > 0 ? value : ''
+                formatter: fmtLabel
+            }
+        }
+    });
+}
+
+// Barras apiladas por mes: un segmento por grupo, con 2 px de separación entre segmentos.
+// Solo se rotulan los segmentos grandes; el detalle de cada mes está en el tooltip.
+function renderStackedMonthly(canvasId, months, groups, data, { colorFor, incomplete = new Map(), isDarkMode, onClick }) {
+    const labels = months.map(key => monthAxisLabel(key, incomplete));
+    const surface = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim() || '#ffffff';
+    const totals = months.map((_, i) => groups.reduce((sum, group) => sum + (data[group][i] || 0), 0));
+    const maxTotal = Math.max(1, ...totals);
+    // Texto oscuro sobre el amarillo, blanco sobre los demás colores
+    const darkText = new Set([getCategoryColor('', false), '#eda100', '#c98500']);
+
+    const datasets = groups.map(group => {
+        const color = colorFor(group);
+        return {
+            label: group,
+            data: data[group],
+            backgroundColor: months.map(key => fadeColor(color, incomplete.has(key))),
+            borderColor: surface,
+            borderWidth: { top: 2 },
+            borderRadius: 0,
+            borderSkipped: false,
+            stack: 'total'
+        };
+    });
+
+    renderChart(canvasId, 'bar', labels, [], null, {
+        datasets,
+        onClick,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+            x: { stacked: true },
+            y: { stacked: true, beginAtZero: true, grace: '8%' }
+        },
+        plugins: {
+            legend: {
+                display: true,
+                labels: {
+                    // La leyenda usa el color pleno de cada grupo, no el pálido de un mes incompleto
+                    generateLabels: (chart) => Chart.defaults.plugins.legend.labels.generateLabels(chart)
+                        .map(item => ({ ...item, fillStyle: colorFor(item.text), strokeStyle: colorFor(item.text) }))
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    footer: (items) => items.length ? `Total : ${fmt(totals[items[0].dataIndex])}` : ''
+                }
+            },
+            datalabels: {
+                display: (ctx) => (ctx.dataset.data[ctx.dataIndex] || 0) >= maxTotal * 0.08,
+                anchor: 'center',
+                align: 'center',
+                // En claro, los meses incompletos van en tono pálido: ahí el número va en tinta oscura
+                color: (ctx) => (!isDarkMode && (darkText.has(colorFor(ctx.dataset.label)) || incomplete.has(months[ctx.dataIndex])) ? '#0b0b0b' : '#ffffff'),
+                font: { weight: 'bold', family: 'Outfit', size: 11 },
+                formatter: fmtLabel
             }
         }
     });
@@ -843,29 +958,20 @@ function renderCompareEvolution(config, records) {
 
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
     const textColor = isDarkMode ? '#94a3b8' : '#475569';
-    const lineColors = isDarkMode ? ['#60a5fa', '#fbbf24'] : ['#2563eb', '#d97706'];
+    // Elemento elegido en tinta neutra y el de comparación en gris: ninguno toma un color que ya
+    // significa algo (tipos de tarea o categorías). La leyenda dice cuál es cuál.
+    const lineColors = isDarkMode ? [NEUTRAL_COLORS.dark.ink, '#898781'] : [NEUTRAL_COLORS.light.ink, '#898781'];
 
     const selected = [a, b].filter(Boolean);
     const { months, series } = monthlySeries(records, selected, config.getKey);
     const labelOf = (key) => (entries.find(entry => entry.key === key) || { label: key }).label;
-    const monthNamesShort = ["Janv", "Févr", "Mars", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"];
-    const labels = months.map(key => {
-        const [y, m] = key.split('-');
-        return `${monthNamesShort[parseInt(m, 10) - 1]} ${y}`;
-    });
+    const incomplete = currentIncompleteMonths();
+    const labels = months.map(key => monthAxisLabel(key, incomplete));
 
     const datasets = selected.map((key, index) => ({
         label: labelOf(key),
         data: series[key],
-        borderColor: lineColors[index],
-        backgroundColor: lineColors[index],
-        fill: false,
-        // Monótona: la curva nunca se sale de los valores reales (p. ej. por debajo de 0)
-        cubicInterpolationMode: 'monotone',
-        tension: 0.3,
-        borderWidth: 3,
-        pointRadius: 4,
-        pointHoverRadius: 6
+        ...monthlyLineStyle(lineColors[index], months, incomplete)
     }));
 
     renderChart(config.canvasId, 'line', labels, [], null, {
@@ -884,7 +990,7 @@ function renderCompareEvolution(config, records) {
                 align: 'top',
                 color: (context) => context.dataset.borderColor || textColor,
                 font: { weight: 'bold', family: 'Outfit', size: 11 },
-                formatter: (value) => value > 0 ? value : ''
+                formatter: fmtLabel
             }
         }
     });
@@ -907,6 +1013,7 @@ function renderChart(canvasId, type, labels, data, colors, customOptions = {}) {
     const defaultOptions = {
         responsive: true,
         maintainAspectRatio: false,
+        locale: 'fr-CA',
         color: textColor,
         layout: {
             padding: { right: customOptions.indexAxis === 'y' ? 35 : 0 }
@@ -928,7 +1035,7 @@ function renderChart(canvasId, type, labels, data, colors, customOptions = {}) {
                                 const total = dataset.data.reduce((sum, val) => sum + Number(val || 0), 0);
                                 return data.labels.map((label, i) => {
                                     const value = Number(dataset.data[i] || 0);
-                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
+                                    const percentage = `${fmt(total > 0 ? (value / total) * 100 : 0, 1)} %`;
                                     
                                     const meta = chart.getDatasetMeta(0);
                                     const style = meta.controller.getStyle(i);
@@ -970,7 +1077,7 @@ function renderChart(canvasId, type, labels, data, colors, customOptions = {}) {
                 color: (['pie', 'doughnut'].includes(type) || customOptions.datasets) ? '#fff' : textColor,
                 offset: customOptions.datasets ? 0 : 4,
                 font: { weight: 'bold', family: 'Outfit' },
-                formatter: (value) => value > 0 ? value : ''
+                formatter: fmtLabel
             }
         },
         scales: ['pie', 'doughnut'].includes(type) ? {} : {
@@ -985,7 +1092,7 @@ function renderChart(canvasId, type, labels, data, colors, customOptions = {}) {
         },
         elements: {
             bar: { borderRadius: 6, borderSkipped: false },
-            line: { tension: 0.4, borderWidth: 3 }
+            line: { tension: 0, borderWidth: 2 }
         },
         onClick: (e, activeEls) => {
             if (activeEls.length > 0 && customOptions.onClick) {
