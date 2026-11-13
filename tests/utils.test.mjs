@@ -35,6 +35,9 @@ import {
     parsePrice,
     parseRecordDate,
     toDateOnly,
+    docNumberWarnings,
+    etageGroupKey,
+    etageLabel,
     recordMonthKey,
     referenceKey,
     weekdayTotals
@@ -580,4 +583,43 @@ test('toDateOnly deja igual las fechas simples y lo que no reconoce', () => {
 test('toDateOnly lee como fecha local un instante con hora real', () => {
     // 22:37 en Montreal el 4 de noviembre: sigue siendo el 4 aquí
     assert.equal(toDateOnly('2026-11-05T03:37:12.000Z'), '2026-11-04');
+});
+
+test('docNumberWarnings avisa si falta el número de bon o de tournée', () => {
+    assert.match(docNumberWarnings({ tache: 'Tournée', num_tache: '  ' })[0], /tournée est vide/);
+    assert.match(docNumberWarnings({ tache: 'Bon de travail', num_bon: '' })[0], /bon de travail est vide/);
+    // El número de otra columna no cuenta: la tournée necesita su propio número
+    assert.equal(docNumberWarnings({ tache: 'Tournée', num_tache: '', num_bon: '123' }).length, 1);
+    assert.deepEqual(docNumberWarnings({ tache: 'Remplacement' }), []);
+});
+
+test('docNumberWarnings avisa de caracteres raros y de una cifra de más', () => {
+    const existing = Array.from({ length: 12 }, (_, i) => ({ tache: 'Tournée', num_tache: String(119636260 + i) }));
+    assert.deepEqual(docNumberWarnings({ tache: 'Tournée', num_tache: '119636299' }, existing), []);
+    assert.match(docNumberWarnings({ tache: 'Tournée', num_tache: '1189883672' }, existing)[0], /10 chiffres ; les tournées en ont habituellement 9/);
+    assert.match(docNumberWarnings({ tache: 'Tournée', num_tache: '11963A' }, existing)[0], /caractères inattendus/);
+    // Con pocos registros no hay "largo habitual" y no se avisa
+    assert.deepEqual(docNumberWarnings({ tache: 'Tournée', num_tache: '1189883672' }, existing.slice(0, 3)), []);
+});
+
+test('docNumberWarnings acepta los bons con sufijo y los mide antes del guion', () => {
+    const existing = Array.from({ length: 10 }, (_, i) => ({ tache: 'Bon de travail', num_bon: `11249273${i}` }));
+    assert.deepEqual(docNumberWarnings({ tache: 'Bon de travail', num_bon: '112492734-45' }, existing), []);
+});
+
+test('las cabinas de ascensor se agrupan en "Ascenseurs" y los pisos no cambian', () => {
+    assert.equal(etageGroupKey({ etage: 'ASC. # 22' }), 'Ascenseurs');
+    assert.equal(etageGroupKey({ etage: ' asc #7' }), 'Ascenseurs');
+    assert.equal(etageGroupKey({ etage: '16A' }), '16A');
+    assert.equal(etageLabel('Ascenseurs'), 'Ascenseurs');
+    assert.equal(etageLabel('SS1'), 'Étage SS1');
+});
+
+test('el reporte mensual cuenta los ascensores juntos', () => {
+    const report = monthlyReport([
+        { fecha: '2026-09-10', etage: 'ASC. # 6', quantite: 4 },
+        { fecha: '2026-09-10', etage: 'ASC. # 8', quantite: 3 },
+        { fecha: '2026-09-11', etage: '2', quantite: 5 }
+    ], '2026-09');
+    assert.deepEqual(report.etages, [{ name: 'Ascenseurs', total: 7 }, { name: '2', total: 5 }]);
 });

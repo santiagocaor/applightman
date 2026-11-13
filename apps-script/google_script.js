@@ -6,6 +6,9 @@ const SHEET_NAME_ETAGES = "Étages";
 const SHEET_NAME_TACHES = "Tâches";
 const SHEET_NAME_LOCATAIRES = "Locataire";
 const SHEET_NAME_RECORDS = "Registros";
+// Notas de la app: una fila por nota. Se crea sola la primera vez que la app envía una nota.
+const SHEET_NAME_NOTES = "Notes";
+const NOTES_HEADERS = ["Id", "Texte", "Couleur", "Terminée", "Créée le"];
 
 // Tiempo máximo de espera para escribir cuando otro envío está en curso
 const LOCK_TIMEOUT_MS = 25000;
@@ -165,6 +168,11 @@ function doPost(e) {
       }
 
       return createJsonResponse({ status: 'success', message: 'Records added successfully' });
+    }
+
+    if (action === 'syncNotes') {
+      applyNoteOperations(data.operations);
+      return createJsonResponse({ status: 'success', notes: readNotes(SpreadsheetApp.getActiveSpreadsheet()) });
     }
 
     if (action === 'deleteRecord') {
@@ -484,7 +492,81 @@ function buildDataResponse() {
     locataire: locatairesList
   };
 
-  return createJsonResponse({ status: 'success', options: options, records: records, totalRecords: totalRecords });
+  return createJsonResponse({ status: 'success', options: options, records: records, totalRecords: totalRecords, notes: readNotes(ss) });
+}
+
+// ============================================================
+// NOTAS
+// ============================================================
+// Un texto que empieza por =, +, - o @ se guardaría como fórmula: el apóstrofo lo deja como texto
+function asPlainText(value) {
+  const text = String(value === undefined || value === null ? '' : value);
+  return /^[=+\-@]/.test(text) ? "'" + text : text;
+}
+
+function readNotes(ss) {
+  const sheet = getSheetByNameCaseInsensitive(ss, SHEET_NAME_NOTES);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const values = sheet.getRange(1, 1, sheet.getLastRow(), sheet.getLastColumn()).getValues();
+  const headers = values[0].map(h => String(h).trim());
+  const cell = (row, name) => (headers.indexOf(name) > -1 ? row[headers.indexOf(name)] : '');
+  return values.slice(1)
+    .filter(row => String(cell(row, 'Id')).trim() !== '')
+    .map(row => {
+      const created = cell(row, 'Créée le');
+      const done = cell(row, 'Terminée');
+      return {
+        id: String(cell(row, 'Id')).trim(),
+        text: String(cell(row, 'Texte')),
+        color: String(cell(row, 'Couleur') || 'note-blue'),
+        completed: done === true || /^(true|vrai|1)$/i.test(String(done).trim()),
+        timestamp: Object.prototype.toString.call(created) === '[object Date]' ? created.toISOString() : String(created || '')
+      };
+    });
+}
+
+// Aplica en orden los cambios enviados por la app: { op: 'save', id, note } crea o actualiza la fila
+// de esa nota; { op: 'delete', id } la borra. Las columnas que la app no conoce no se tocan.
+function applyNoteOperations(operations) {
+  const sheet = getOrCreateSheetWithHeaders(SHEET_NAME_NOTES, NOTES_HEADERS);
+  (operations || []).forEach(item => {
+    const id = String((item && item.id) || '').trim();
+    if (!id) return;
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
+    const idCol = headers.indexOf('Id');
+    if (idCol === -1) throw new Error("La pestaña Notes n'a pas de colonne Id");
+
+    let rowIndex = -1;
+    const lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      const ids = sheet.getRange(2, idCol + 1, lastRow - 1, 1).getValues();
+      for (let i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]).trim() === id) { rowIndex = i + 2; break; }
+      }
+    }
+
+    if (item.op === 'delete') {
+      if (rowIndex > -1) sheet.deleteRow(rowIndex);
+      return;
+    }
+    if (item.op !== 'save' || !item.note) return;
+
+    const note = item.note;
+    const fields = {
+      'Id': id,
+      'Texte': asPlainText(note.text),
+      'Couleur': String(note.color || 'note-blue'),
+      'Terminée': note.completed === true,
+      'Créée le': asPlainText(note.timestamp)
+    };
+    if (rowIndex > -1) {
+      const current = sheet.getRange(rowIndex, 1, 1, headers.length).getValues()[0];
+      const row = headers.map((h, c) => (Object.prototype.hasOwnProperty.call(fields, h) ? fields[h] : current[c]));
+      sheet.getRange(rowIndex, 1, 1, headers.length).setValues([row]);
+    } else {
+      sheet.appendRow(headers.map(h => (Object.prototype.hasOwnProperty.call(fields, h) ? fields[h] : '')));
+    }
+  });
 }
 
 // Funciones Auxiliares

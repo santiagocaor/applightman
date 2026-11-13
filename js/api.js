@@ -82,6 +82,14 @@ export async function fetchDataFromCloud(showBlockingLoader = true) {
         store.setDataInfo(store.records.length, data.totalRecords);
         store.removeSyncedFromQueue();
 
+        // Un Apps Script antiguo no envía notas: entonces se quedan solo en el teléfono, como antes
+        notesSupported = Array.isArray(data.notes);
+        if (notesSupported) {
+            store.applyServerNotes(data.notes);
+            ui.renderNotes();
+            syncNotes();
+        }
+
         ui.updateSyncBadge();
         ui.setConnectionStatus("Connecté à Google Sheets", true);
         ui.populateAllSelects();
@@ -169,6 +177,38 @@ export async function syncOfflineQueue() {
         isSyncing = false;
         ui.hideLoader();
     }
+}
+
+let notesSupported = false;
+let isSyncingNotes = false;
+
+// Envía a la hoja los cambios de notas pendientes. Sin conexión, sin URL o con un Apps Script que aún
+// no conoce las notas, la cola espera. Las notas siguen visibles y editables en el teléfono en todo momento.
+export async function syncNotes() {
+    if (isSyncingNotes || !notesSupported || store.notesQueue.length === 0 || !store.apiUrl || !navigator.onLine) return;
+
+    const batch = [...store.notesQueue];
+    const lastSeq = Math.max(...batch.map(item => item.seq || 0));
+    isSyncingNotes = true;
+    try {
+        const result = await postToApi({
+            action: 'syncNotes',
+            operations: batch.map(({ op, id, note }) => (op === 'save' ? { op, id, note } : { op, id }))
+        });
+        store.markNotesSynced(lastSeq);
+        if (Array.isArray(result.notes)) {
+            store.applyServerNotes(result.notes);
+            ui.renderNotes();
+        }
+    } catch (error) {
+        // Se reintenta en la próxima sincronización; la nota ya está guardada en el teléfono
+        console.error("Notes Sync Error:", error);
+        return;
+    } finally {
+        isSyncingNotes = false;
+    }
+    // Lo que se cambió mientras se enviaba sale en un segundo envío
+    if (store.notesQueue.length > 0) syncNotes();
 }
 
 // [FIX G-2] Se verifica la respuesta del servidor — antes se asumía éxito siempre

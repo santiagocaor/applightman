@@ -1541,6 +1541,10 @@ body {
     height: 150px;
 }
 
+.notes-sync-note {
+    margin: 0 0 1rem;
+}
+
 .category-panels-note {
     margin-top: 0;
 }
