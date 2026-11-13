@@ -1508,54 +1508,6 @@ body {
     min-height: 300px;
 }
 
-/* Évolution par catégorie: una mini gráfica por categoría; dos por fila en pantallas anchas, una en teléfonos */
-.category-panels {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-    gap: 1rem 1.5rem;
-    margin-top: 0.75rem;
-}
-
-.category-panel {
-    min-width: 0;
-}
-
-.category-panel-title {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 0.5rem;
-    margin: 0 0 0.25rem;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.category-panel-total {
-    font-size: 0.78rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
-}
-
-.category-panel-chart {
-    position: relative;
-    height: 150px;
-}
-
-.notes-sync-note {
-    margin: 0 0 1rem;
-}
-
-.category-panels-note {
-    margin-top: 0;
-}
-
-/* La tarjeta crece con sus mini gráficas: sin altura mínima fija */
-.category-panels-card {
-    min-height: auto;
-}
-
 .compare-controls {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1583,6 +1535,11 @@ body {
 .sync-pill .material-symbols-rounded {
     font-size: 1.1rem;
     color: var(--warning, #f59e0b);
+}
+
+/* Nota de Notes: dónde se guardan */
+.notes-sync-note {
+    margin: 0 0 1rem;
 }
 
 /* --- Enchaîner les lignes: interruptor compacto en una sola línea, con "Vider le formulaire" al lado --- */
