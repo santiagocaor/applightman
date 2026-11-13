@@ -42,13 +42,7 @@ function currentIncompleteMonths() {
     return incompleteMonths(store.getAllRecords().filter(r => !isReceptionTask(r.tache)));
 }
 
-// Etiqueta del eje: un mes incompleto lleva una segunda línea "partiel"
-function monthAxisLabel(key, incomplete) {
-    const label = shortMonthLabel(key);
-    return incomplete.has(key) ? [label, '(partiel)'] : label;
-}
-
-// Color con transparencia para las barras de un mes incompleto
+// Color con transparencia (lo usa el informe impreso para los meses incompletos)
 function fadeColor(hex, partial) {
     return partial ? `${hex}59` : hex;
 }
@@ -63,7 +57,7 @@ function renderIncompleteNote(incomplete) {
         return info.kind === 'start' ? `${name} (données à partir du ${info.day})` : `${name} (mois en cours, jusqu'au ${info.day})`;
     });
     note.textContent = parts.length
-        ? `Mois incomplets : ${parts.join(' et ')}. Ils sont marqués « partiel », en couleur pâle ou en pointillé, et ne comptent pas dans la moyenne mensuelle.`
+        ? `Mois incomplets : ${parts.join(' et ')}. Ils ne comptent pas dans la moyenne mensuelle.`
         : '';
     note.classList.toggle('hidden-field', parts.length === 0);
 }
@@ -186,15 +180,16 @@ export function updateDashboard() {
     const sortedMonths = Object.keys(monthlyData).sort();
     const incomplete = currentIncompleteMonths();
     renderIncompleteNote(incomplete);
-    const monthlyLabels = sortedMonths.map(key => monthAxisLabel(key, incomplete));
+    const monthlyLabels = sortedMonths.map(key => shortMonthLabel(key));
     const monthlyValues = sortedMonths.map(key => monthlyData[key]);
 
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
 
     // Volumen total y n.º 1 de los rankings: tinta neutra (el azul y el naranja son de los tipos de tarea)
     const neutral = NEUTRAL_COLORS[isDarkMode ? 'dark' : 'light'];
-    const volumeColor = neutral.ink;
-    const monthlyColors = sortedMonths.map(key => fadeColor(volumeColor, incomplete.has(key)));
+    // El mes con más ampoules en tinta oscura y los demás en gris, como en los rankings
+    const monthlyMax = Math.max(0, ...monthlyValues);
+    const monthlyColors = monthlyValues.map(value => (monthlyMax > 0 && value === monthlyMax ? neutral.ink : neutral.muted));
 
     // 2. Top 5 Productos
     const productData = {};
@@ -527,7 +522,6 @@ export function updateDashboard() {
     renderGroupEvolution('taskTypeEvolutionChart', taskTypeEvolution.months, taskTypeEvolution.groups, taskTypeEvolution.data, {
         colorFor: (name) => taskColor(name, isDarkMode),
         textColor,
-        incomplete,
         onClick: handleChartClick
     });
 
@@ -556,14 +550,13 @@ export function updateDashboard() {
     }, {
         colorFor: (_name, index) => docsColors[index],
         textColor,
-        incomplete,
         onClick: handleChartClick
     });
 
     // Évolution mensuelle par catégorie: una pequeña gráfica de barras por categoría, con la misma escala,
     // así cada valor lleva su número (en barras apiladas los segmentos pequeños no tenían sitio)
     const categoryEvolution = monthlyByCategory(dashboardRecords, { fillGaps: true });
-    renderCategoryPanels(categoryEvolution, { incomplete, isDarkMode, textColor, onClick: handleChartClick });
+    renderCategoryPanels(categoryEvolution, { isDarkMode, textColor, onClick: handleChartClick });
 
     renderLocataireEvolution(dashboardRecords);
     renderEtageEvolution(dashboardRecords);
@@ -618,10 +611,7 @@ export function updateDashboard() {
 
 }
 // Estilo de una línea mensual: rectas entre puntos (una curva inventaría valores entre meses)
-// y, en los meses incompletos, tramo en pointillé y punto hueco.
-function monthlyLineStyle(color, months, incomplete) {
-    const partial = months.map(key => incomplete.has(key));
-    const surface = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim() || '#ffffff';
+function monthlyLineStyle(color) {
     return {
         borderColor: color,
         backgroundColor: color,
@@ -632,10 +622,7 @@ function monthlyLineStyle(color, months, incomplete) {
         pointHoverRadius: 6,
         pointBorderColor: color,
         pointBorderWidth: 2,
-        pointBackgroundColor: partial.map(p => (p ? surface : color)),
-        segment: {
-            borderDash: (ctx) => (partial[ctx.p0DataIndex] || partial[ctx.p1DataIndex] ? [6, 4] : undefined)
-        }
+        pointBackgroundColor: color
     };
 }
 
@@ -687,13 +674,13 @@ function lineValueLabels(seriesValues, textColor) {
 }
 
 // Gráfica de líneas con un trazo por grupo a lo largo de los meses
-function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textColor, incomplete = new Map(), onClick }) {
-    const labels = months.map(key => monthAxisLabel(key, incomplete));
+function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textColor, onClick }) {
+    const labels = months.map(key => shortMonthLabel(key));
 
     const datasets = groups.map((group, index) => ({
         label: group,
         data: data[group],
-        ...monthlyLineStyle(colorFor(group, index), months, incomplete)
+        ...monthlyLineStyle(colorFor(group, index))
     }));
 
     const valueLabels = lineValueLabels(datasets.map(d => d.data), textColor);
@@ -713,7 +700,7 @@ function renderGroupEvolution(canvasId, months, groups, data, { colorFor, textCo
 
 // Una mini gráfica de barras por categoría, todas con la misma escala vertical para que se puedan
 // comparar. Cada barra lleva su número encima, también los 0; los meses incompletos van en tono pálido.
-function renderCategoryPanels({ months, categories, data }, { incomplete, isDarkMode, textColor, onClick }) {
+function renderCategoryPanels({ months, categories, data }, { isDarkMode, textColor, onClick }) {
     const container = document.getElementById('categoryEvolutionPanels');
     if (!container) return;
 
@@ -728,11 +715,10 @@ function renderCategoryPanels({ months, categories, data }, { incomplete, isDark
     const neutral = NEUTRAL_COLORS[isDarkMode ? 'dark' : 'light'];
     const maxValue = Math.max(1, ...categories.flatMap(category => data[category]));
     const multiYear = new Set(months.map(key => key.slice(0, 4))).size > 1;
-    // Etiqueta corta: "Juin" (con el año si los datos cruzan de año) y "partiel" debajo si el mes está incompleto
+    // Etiqueta corta: "Juin" (con el año si los datos cruzan de año)
     const labels = months.map(key => {
         const [y, m] = key.split('-');
-        const name = SHORT_MONTH_NAMES[parseInt(m, 10) - 1] + (multiYear ? ` ${y.slice(2)}` : '');
-        return incomplete.has(key) ? [name, '(partiel)'] : name;
+        return SHORT_MONTH_NAMES[parseInt(m, 10) - 1] + (multiYear ? ` ${y.slice(2)}` : '');
     });
 
     categories.forEach((category, index) => {
@@ -757,7 +743,7 @@ function renderCategoryPanels({ months, categories, data }, { incomplete, isDark
         panel.append(title, box);
         container.appendChild(panel);
 
-        renderChart(canvas.id, 'bar', labels, data[category], months.map(key => fadeColor(neutral.ink, incomplete.has(key))), {
+        renderChart(canvas.id, 'bar', labels, data[category], months.map(() => neutral.ink), {
             datasetLabel: category,
             onClick,
             layout: { padding: { top: 4 } },
@@ -1144,13 +1130,12 @@ function renderCompareEvolution(config, records) {
     const selected = [a, b].filter(Boolean);
     const { months, series } = monthlySeries(records, selected, config.getKey);
     const labelOf = (key) => (entries.find(entry => entry.key === key) || { label: key }).label;
-    const incomplete = currentIncompleteMonths();
-    const labels = months.map(key => monthAxisLabel(key, incomplete));
+    const labels = months.map(key => shortMonthLabel(key));
 
     const datasets = selected.map((key, index) => ({
         label: labelOf(key),
         data: series[key],
-        ...monthlyLineStyle(lineColors[index], months, incomplete)
+        ...monthlyLineStyle(lineColors[index])
     }));
 
     const valueLabels = lineValueLabels(datasets.map(d => d.data), textColor);
