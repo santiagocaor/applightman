@@ -36,6 +36,10 @@ import {
     parseRecordDate,
     toDateOnly,
     docNumberWarnings,
+    findPossibleDuplicates,
+    describeRecordLine,
+    previousMonthKey,
+    monthlyTrend,
     etageGroupKey,
     etageLabel,
     recordMonthKey,
@@ -622,4 +626,44 @@ test('el reporte mensual cuenta los ascensores juntos', () => {
         { fecha: '2026-09-11', etage: '2', quantite: 5 }
     ], '2026-09');
     assert.deepEqual(report.etages, [{ name: 'Ascenseurs', total: 7 }, { name: '2', total: 5 }]);
+});
+
+const line = (over = {}) => ({ uuid: 'a', fecha: '2026-10-22', tache: 'Bon de travail', num_bon: '119275977', etage: '18', locataire: 'Vox Data', id_item: 'FC-24', description: 'F32T8/TL935/ALTO', quantite: 36, ...over });
+
+test('findPossibleDuplicates encuentra el mismo reemplazo aunque cambie la cantidad', () => {
+    const existing = [line()];
+    assert.equal(findPossibleDuplicates(line({ uuid: 'b', quantite: 3 }), existing).length, 1);
+    // Las fechas de la hoja en formato largo también cuentan como el mismo día
+    assert.equal(findPossibleDuplicates(line({ uuid: 'b' }), [line({ fecha: undefined, date: '2026-10-22T04:00:00.000Z' })]).length, 1);
+});
+
+test('findPossibleDuplicates no avisa si cambia el piso, la referencia, el número o el día', () => {
+    const existing = [line()];
+    assert.deepEqual(findPossibleDuplicates(line({ uuid: 'b', etage: '9' }), existing), []);
+    assert.deepEqual(findPossibleDuplicates(line({ uuid: 'b', id_item: 'FC-23', description: 'F32T8/TL930/ALTO' }), existing), []);
+    assert.deepEqual(findPossibleDuplicates(line({ uuid: 'b', num_bon: '119275978' }), existing), []);
+    assert.deepEqual(findPossibleDuplicates(line({ uuid: 'b', fecha: '2026-10-23' }), existing), []);
+});
+
+test('findPossibleDuplicates no compara un registro en edición consigo mismo', () => {
+    assert.deepEqual(findPossibleDuplicates(line({ quantite: 5 }), [line()], 'a'), []);
+});
+
+test('findPossibleDuplicates sin número compara el tipo de tarea y el locataire', () => {
+    const noNumber = { uuid: 'x', fecha: '2026-10-22', tache: 'Remplacement', etage: '2', locataire: 'BGO', id_item: 'PL-02', quantite: 2 };
+    assert.equal(findPossibleDuplicates({ ...noNumber, uuid: 'y' }, [noNumber]).length, 1);
+    assert.deepEqual(findPossibleDuplicates({ ...noNumber, uuid: 'y', locataire: 'Sun Life' }, [noNumber]), []);
+});
+
+test('describeRecordLine resume la línea para el aviso', () => {
+    const text = describeRecordLine(line());
+    assert.match(text, /22 oct\.? 2026/);
+    assert.match(text, /Bon de travail 119275977 · Étage 18 · F32T8\/TL935\/ALTO · 36 ampoules/);
+});
+
+test('previousMonthKey y monthlyTrend cruzan el cambio de año', () => {
+    assert.equal(previousMonthKey('2026-01'), '2025-12');
+    assert.equal(previousMonthKey('2026-11'), '2026-10');
+    const trend = monthlyTrend([{ fecha: '2025-12-03', quantite: 4 }, { fecha: '2026-02-10', quantite: 2 }, { fecha: '2026-02-11', quantite: 1 }], '2026-02', 3);
+    assert.deepEqual(trend, [{ month: '2025-12', total: 4 }, { month: '2026-01', total: 0 }, { month: '2026-02', total: 3 }]);
 });
