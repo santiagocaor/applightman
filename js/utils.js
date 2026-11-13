@@ -1,14 +1,53 @@
 // js/utils.js
 
-export const catPalette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'];
+// Colores de las gráficas. Cada color tiene un solo significado en toda la app:
+// - categorías de material: CATEGORY_COLORS, en orden fijo (validado para daltonismo, claro y oscuro);
+// - tipos de tarea: azul = Bon de travail, naranja = Tournée (tonos que las categorías no usan);
+// - volumen total y "el n.º 1" de un ranking: tinta neutra, sin tono propio.
+const CATEGORY_COLORS = {
+    light: ['#1baf7a', '#6250d6', '#eda100', '#e87ba4', '#008300', '#e34948'],
+    dark: ['#199e70', '#9085e9', '#c98500', '#d55181', '#008300', '#e66767']
+};
+// Categoría sin nombre, o más categorías que colores: gris neutro
+const CATEGORY_FALLBACK = { light: '#b8b6ad', dark: '#5f5e5a' };
 
-export function getCategoryColor(categoryName) {
-    if (!categoryName) return '#cbd5e1';
-    let hash = 0;
-    for (let i = 0; i < categoryName.length; i++) {
-        hash = categoryName.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return catPalette[Math.abs(hash) % catPalette.length];
+const TASK_COLORS = {
+    light: { bon: '#2a78d6', tournee: '#eb6834', other: '#898781' },
+    dark: { bon: '#3987e5', tournee: '#d95926', other: '#898781' }
+};
+
+export const NEUTRAL_COLORS = {
+    light: { ink: '#334155', muted: '#b8b6ad' },
+    dark: { ink: '#cbd5e1', muted: '#5f5e5a' }
+};
+
+let categoryOrder = [];
+
+// Fija qué color lleva cada categoría: la posición en la lista decide el color, así un filtro
+// nunca cambia el color de una categoría. Las que aparecen después se añaden al final.
+export function setCategoryOrder(names) {
+    categoryOrder = [];
+    (names || []).forEach(registerCategory);
+}
+
+function registerCategory(name) {
+    const key = String(name ?? '').trim();
+    if (key && key !== 'Inconnu' && !categoryOrder.includes(key)) categoryOrder.push(key);
+    return categoryOrder.indexOf(key);
+}
+
+export function getCategoryColor(categoryName, dark = false) {
+    const mode = dark ? 'dark' : 'light';
+    const index = registerCategory(categoryName);
+    const palette = CATEGORY_COLORS[mode];
+    return index >= 0 && index < palette.length ? palette[index] : CATEGORY_FALLBACK[mode];
+}
+
+// Color de un tipo de tarea: el mismo en todas las gráficas
+export function taskColor(task, dark = false) {
+    const colors = TASK_COLORS[dark ? 'dark' : 'light'];
+    const kind = docReference({ tache: task })?.kind;
+    return colors[kind] || colors.other;
 }
 
 // [FIX L-3] UUID generado con la API criptográfica del navegador (no Math.random)
@@ -157,8 +196,10 @@ export function docReference(record) {
 // Bon de travail y tournées distintos por mes. Cada bon o tournée genera varias filas (una por
 // material), así que se cuenta cada número una sola vez dentro del mes. Las filas sin número no se pueden
 // distinguir y no cuentan (se devuelven en withoutNumber). Devuelve los meses seguidos, con 0 donde no hubo ninguno.
+// Los totales cuentan cada número una sola vez en todo el período, aunque aparezca en varios meses.
 export function uniqueDocsByMonth(records) {
     const seen = { bon: {}, tournee: {} };
+    const overall = { bon: new Set(), tournee: new Set() };
     let withoutNumber = 0;
     records.forEach(record => {
         const doc = docReference(record);
@@ -168,8 +209,10 @@ export function uniqueDocsByMonth(records) {
             withoutNumber += 1;
             return;
         }
+        const number = doc.number.toLowerCase();
         seen[doc.kind][month] = seen[doc.kind][month] || new Set();
-        seen[doc.kind][month].add(doc.number.toLowerCase());
+        seen[doc.kind][month].add(number);
+        overall[doc.kind].add(number);
     });
 
     const keys = [...Object.keys(seen.bon), ...Object.keys(seen.tournee)].sort();
@@ -177,8 +220,7 @@ export function uniqueDocsByMonth(records) {
     const countsFor = (kind) => months.map(month => (seen[kind][month] ? seen[kind][month].size : 0));
     const bon = countsFor('bon');
     const tournee = countsFor('tournee');
-    const sum = (values) => values.reduce((total, value) => total + value, 0);
-    return { months, bon, tournee, totalBon: sum(bon), totalTournee: sum(tournee), withoutNumber };
+    return { months, bon, tournee, totalBon: overall.bon.size, totalTournee: overall.tournee.size, withoutNumber };
 }
 
 export function recordDay(record) {
@@ -419,12 +461,36 @@ export function monthInPeriod(monthKey, period, now = new Date()) {
 
 // Promedio mensual sobre meses completos del calendario, incluidos los meses sin registros.
 // El mes en curso se deja fuera mientras existan meses anteriores, porque aún está a medias.
-export function monthlyAverage(monthlyTotals, now = new Date()) {
+// Meses que los registros no cubren enteros: el mes en curso y el primer mes si los datos empiezan
+// después del día 1. Devuelve un Map mes -> motivo, para marcarlos en las gráficas.
+export function incompleteMonths(records, now = new Date()) {
+    const result = new Map();
+    let first = null;
+    records.forEach(record => {
+        const raw = record.date || record.fecha;
+        if (!raw) return;
+        const d = parseRecordDate(raw);
+        if (!isNaN(d) && (first === null || d < first)) first = d;
+    });
+    if (first === null) return result;
+
+    const toKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (first.getDate() > 1) result.set(toKey(first), { kind: 'start', day: first.getDate() });
+    result.set(toKey(now), { kind: 'current', day: now.getDate() });
+    return result;
+}
+
+// También se dejan fuera los meses incompletos que se indiquen (p. ej. el primero, si los datos empiezan a mitad de mes).
+export function monthlyAverage(monthlyTotals, now = new Date(), incomplete = new Set()) {
     let keys = Object.keys(monthlyTotals).sort();
     if (keys.length === 0) return { average: 0, months: 0 };
 
     const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    if (keys.length > 1 && keys.includes(currentKey)) {
+    const skip = new Set([currentKey, ...incomplete]);
+    const complete = keys.filter(key => !skip.has(key));
+    if (complete.length > 0) {
+        keys = complete;
+    } else if (keys.length > 1 && keys.includes(currentKey)) {
         keys = keys.filter(key => key !== currentKey);
     }
 

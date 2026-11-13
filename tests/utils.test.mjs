@@ -23,6 +23,10 @@ import {
     localDateString,
     locataireKey,
     monthlyAverage,
+    incompleteMonths,
+    getCategoryColor,
+    setCategoryOrder,
+    taskColor,
     monthRange,
     monthlyByCategory,
     monthlyByGroup,
@@ -492,4 +496,62 @@ test('recentReferences devuelve artículos distintos, del más reciente, con un 
     assert.deepEqual(recentReferences(history, 3).map(item => item.id || item.description), ['A1', 'Sin id', 'B2']);
     assert.equal(recentReferences(history).length, 4);
     assert.deepEqual(recentReferences([]), []);
+});
+
+test('uniqueDocsByMonth no cuenta dos veces en el total un bon que cruza dos meses', () => {
+    const result = uniqueDocsByMonth([
+        { fecha: '2026-06-17', tache: 'Bon de travail', num_bon: '116806001', quantite: 2 },
+        { fecha: '2026-07-20', tache: 'Bon de travail', num_bon: '116806001', quantite: 1 },
+        { fecha: '2026-07-21', tache: 'Bon de travail', num_bon: '2', quantite: 1 }
+    ]);
+    assert.deepEqual(result.bon, [1, 2]);
+    assert.equal(result.totalBon, 2);
+});
+
+test('incompleteMonths marca el primer mes si empieza después del día 1 y el mes en curso', () => {
+    const result = incompleteMonths([
+        { fecha: '2026-06-08' }, { fecha: '2026-09-15' }, { fecha: '2026-11-12' }, {}
+    ], new Date(2026, 10, 13));
+    assert.deepEqual([...result.keys()].sort(), ['2026-06', '2026-11']);
+    assert.deepEqual(result.get('2026-06'), { kind: 'start', day: 8 });
+    assert.deepEqual(result.get('2026-11'), { kind: 'current', day: 13 });
+});
+
+test('incompleteMonths no marca el primer mes si los datos empiezan el día 1', () => {
+    const result = incompleteMonths([{ fecha: '2026-06-01' }], new Date(2026, 10, 13));
+    assert.deepEqual([...result.keys()], ['2026-11']);
+    assert.equal(incompleteMonths([]).size, 0);
+});
+
+test('el promedio mensual deja fuera también los meses incompletos indicados', () => {
+    const { average, months } = monthlyAverage(
+        { '2026-06': 9, '2026-07': 30, '2026-08': 30, '2026-09': 2 },
+        new Date(2026, 8, 5),
+        new Set(['2026-06'])
+    );
+    assert.equal(months, 2);
+    assert.equal(average, 30);
+});
+
+test('si todos los meses están incompletos, el promedio usa los que hay', () => {
+    const { average, months } = monthlyAverage({ '2026-11': 7 }, new Date(2026, 10, 5), new Set(['2026-11']));
+    assert.deepEqual({ average, months }, { average: 7, months: 1 });
+});
+
+test('cada categoría conserva su color y dos categorías nunca comparten color', () => {
+    setCategoryOrder(['Flux Compact', 'PL', 'LED', 'Halogène']);
+    const colors = ['Flux Compact', 'PL', 'LED', 'Halogène'].map(c => getCategoryColor(c));
+    assert.equal(new Set(colors).size, 4);
+    assert.equal(getCategoryColor('LED'), colors[2]);
+    assert.notEqual(getCategoryColor('Inconnu'), colors[0]);
+    assert.notEqual(getCategoryColor('LED', true), colors[2]);
+});
+
+test('el color de un tipo de tarea no depende de su tamaño ni de la gráfica', () => {
+    assert.equal(taskColor('Bon de travail'), taskColor('bon de travail'));
+    assert.notEqual(taskColor('Bon de travail'), taskColor('Tournée'));
+    setCategoryOrder(['A', 'B', 'C', 'D', 'E', 'F']);
+    const categoryColors = ['A', 'B', 'C', 'D', 'E', 'F'].map(c => getCategoryColor(c));
+    assert.ok(!categoryColors.includes(taskColor('Bon de travail')));
+    assert.ok(!categoryColors.includes(taskColor('Tournée')));
 });
