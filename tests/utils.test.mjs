@@ -538,7 +538,7 @@ test('si todos los meses están incompletos, el promedio usa los que hay', () =>
     assert.deepEqual({ average, months }, { average: 7, months: 1 });
 });
 
-test('cada categoría conserva su color y dos categorías nunca comparten color', () => {
+test('las cuatro categorías principales tienen tonos distintos y conservan su color', () => {
     setCategoryOrder(['Flux Compact', 'PL', 'LED', 'Halogène']);
     const colors = ['Flux Compact', 'PL', 'LED', 'Halogène'].map(c => getCategoryColor(c));
     assert.equal(new Set(colors).size, 4);
@@ -555,3 +555,4 @@ test('el color de un tipo de tarea no depende de su tamaño ni de la gráfica', 
     assert.ok(!categoryColors.includes(taskColor('Bon de travail')));
     assert.ok(!categoryColors.includes(taskColor('Tournée')));
 });
+

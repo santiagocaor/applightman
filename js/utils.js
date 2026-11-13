@@ -1,14 +1,15 @@
 // js/utils.js
 
-// Colores de las gráficas. Cada color tiene un solo significado en toda la app:
-// - categorías de material: CATEGORY_COLORS, en orden fijo (validado para daltonismo, claro y oscuro);
-// - tipos de tarea: azul = Bon de travail, naranja = Tournée (tonos que las categorías no usan);
-// - volumen total y "el n.º 1" de un ranking: tinta neutra, sin tono propio.
+// Colores de las gráficas: pocos tonos y cada uno con un solo significado en toda la app.
+// - categorías de material: un solo tono (verde azulado) en degradado, del más usado (oscuro) al menos usado;
+// - tipos de tarea: azul = Bon de travail, naranja = Tournée;
+// - volumen total y rankings: tinta neutra para el n.º 1 y gris para los demás.
+// El degradado está validado (orden de claridad, saltos visibles, contraste con el fondo) en claro y en oscuro.
 const CATEGORY_COLORS = {
-    light: ['#1baf7a', '#6250d6', '#eda100', '#e87ba4', '#008300', '#e34948'],
-    dark: ['#199e70', '#9085e9', '#c98500', '#d55181', '#008300', '#e66767']
+    light: ['#0b4f52', '#13797c', '#2a9a9c', '#62b9ba'],
+    dark: ['#a3e0e1', '#5ec4c6', '#2a9d9f', '#1d7476']
 };
-// Categoría sin nombre, o más categorías que colores: gris neutro
+// Categoría sin nombre, o más categorías que tonos: gris neutro
 const CATEGORY_FALLBACK = { light: '#b8b6ad', dark: '#5f5e5a' };
 
 const TASK_COLORS = {
