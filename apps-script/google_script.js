@@ -314,8 +314,18 @@ function backfillMissingUuids(sheet, uuidIdx) {
   }
 }
 
+// Las celdas de fecha llegan como objetos Date (medianoche en la zona horaria de la hoja). Se envían como
+// texto "AAAA-MM-DD" en esa misma zona: así el día no cambia según la zona horaria del teléfono que las lee.
+function formatSheetDate(value, timeZone) {
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, timeZone, 'yyyy-MM-dd');
+  }
+  return value;
+}
+
 function buildDataResponse() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const timeZone = typeof ss.getSpreadsheetTimeZone === 'function' ? ss.getSpreadsheetTimeZone() : Session.getScriptTimeZone();
 
   // 1. Obtener Opciones (solo Id, Description, Catégorie para el formulario)
   const opcionesSheet = ss.getSheetByName(SHEET_NAME_OPTIONS);
@@ -446,7 +456,7 @@ function buildDataResponse() {
       const uuidVal = uuidIdx > -1 ? row[uuidIdx] : "";
 
       records.push({
-        date: fechaIdx > -1 ? row[fechaIdx] : "",
+        date: fechaIdx > -1 ? formatSheetDate(row[fechaIdx], timeZone) : "",
         etage: etageIdx > -1 ? row[etageIdx] : "",
         locataire: locataireIdx > -1 ? row[locataireIdx] : "",
         description: descVal,

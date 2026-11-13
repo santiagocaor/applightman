@@ -1,5 +1,5 @@
 // js/store.js
-import { recordMonthKey, monthInPeriod, setCategoryOrder } from './utils.js';
+import { recordMonthKey, monthInPeriod, setCategoryOrder, toDateOnly } from './utils.js';
 
 // Lee JSON de localStorage sin romper la app si el contenido está dañado
 export function readJson(key, fallback) {
@@ -41,7 +41,9 @@ function normalizeRecord(record) {
     RECORD_TEXT_FIELDS.forEach(field => {
         normalized[field] = toText(record[field]);
     });
-    normalized.date = record.date || record.fecha || "";
+    // Todas las fechas se guardan como "AAAA-MM-DD": gráficas, historial y formularios leen el mismo día
+    normalized.date = toDateOnly(record.date || record.fecha);
+    if (record.fecha !== undefined) normalized.fecha = toDateOnly(record.fecha);
     return normalized;
 }
 

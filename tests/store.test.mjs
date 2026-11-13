@@ -231,3 +231,14 @@ test('el borrador del formulario se guarda, caduca a las 12 horas y se puede bor
     store.clearDraft();
     assert.equal(store.getDraft(), null);
 });
+
+test('las fechas de la hoja se guardan como AAAA-MM-DD con el día de la hoja', async () => {
+    const store = await openStore(CLOUD);
+    store.setRecords([
+        { ...record({ uuid: 'gmt' }), fecha: undefined, date: '2026-10-01T00:00:00.000Z' },
+        { ...record({ uuid: 'mtl' }), fecha: undefined, date: '2026-10-01T04:00:00.000Z' },
+        record({ uuid: 'plain', fecha: '2026-10-01' })
+    ]);
+    assert.deepEqual(store.records.map(r => r.date), ['2026-10-01', '2026-10-01', '2026-10-01']);
+    assert.equal(store.records[2].fecha, '2026-10-01');
+});
